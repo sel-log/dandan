@@ -6,7 +6,8 @@
  */
 
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://fdkgaostxnlurpetswcf.supabase.co';
-export const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Supabase 새 Secret key (sb_secret_...) 또는 레거시 service_role 키 모두 지원
+export const SUPABASE_KEY = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 /** fetch with 2회 retry + timeout */
 export async function fetchWithRetry(url, opts = {}, retries = 2) {

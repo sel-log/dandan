@@ -34,14 +34,19 @@ export default async function handler(req, res) {
 
   for (const { name, handler: crawl } of CRAWLERS) {
     try {
-      // 각 크롤러를 mock req/res로 실행
+      // mock req — cron secret 헤더 포함
+      const mockReq = {
+        method: 'GET',
+        query: req.query,
+        headers: { 'x-cron-secret': process.env.CRON_SECRET },
+      };
       const mockRes = {
         _data: null,
         _status: 200,
         status(code) { this._status = code; return this; },
         json(data) { this._data = data; return this; },
       };
-      await crawl(req, mockRes);
+      await crawl(mockReq, mockRes);
       results.push({ portal: name, ...mockRes._data, status: mockRes._status });
     } catch (e) {
       results.push({ portal: name, error: e.message, status: 500 });
