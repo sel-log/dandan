@@ -6,16 +6,20 @@
  * 수동 실행: /api/crawl/run?secret=CRON_SECRET
  */
 
-import seoulHandler   from './seoul.js';
-import suwonHandler   from './suwon.js';
-import seongnamHandler from './seongnam.js';
-import ggYouthHandler from './gg-youth.js';
+import seoulHandler      from './seoul.js';
+import seoulPartcptnHandler from './seoul-partcptn.js';
+import suwonHandler      from './suwon.js';
+import seongnamHandler   from './seongnam.js';
+import ggYouthHandler    from './gg-youth.js';
+import gg1inHandler      from './gg-1in.js';
 
 const CRAWLERS = [
-  { name: '서울시 씽글벙글', handler: seoulHandler },
-  { name: '수원시 쏘옥',     handler: suwonHandler },
-  { name: '성남시 1인가구',  handler: seongnamHandler },
-  { name: '경기청년포털',    handler: ggYouthHandler },
+  { name: '서울시 참여프로그램',       handler: seoulPartcptnHandler },  // ← 최우선
+  { name: '경기도 1인가구 참여프로그램', handler: gg1inHandler },          // ← 최우선
+  { name: '서울시 씽글벙글 지원사업',   handler: seoulHandler },
+  { name: '수원시 쏘옥',              handler: suwonHandler },
+  { name: '성남시 1인가구',           handler: seongnamHandler },
+  { name: '경기청년포털',             handler: ggYouthHandler },
 ];
 
 export default async function handler(req, res) {
