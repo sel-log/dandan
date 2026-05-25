@@ -96,14 +96,14 @@ body{display:flex;justify-content:center;align-items:flex-start;min-height:100vh
 .auth-nudge-title{font-size:13px;font-weight:800;color:var(--dandan);margin-bottom:3px;}
 .auth-nudge-sub{font-size:12px;color:var(--text3);line-height:1.5;}
 .auth-btns{padding:0 24px 12px;display:flex;flex-direction:column;gap:10px;flex-shrink:0;}
-.btn-kakao{display:flex;align-items:center;justify-content:center;gap:9px;background:#FEE500;color:#1C1C1C;padding:15px;border-radius:var(--r-md);font-family:inherit;font-size:15px;font-weight:800;border:none;cursor:pointer;transition:filter .12s,transform .1s;}
+.btn-kakao{display:flex;align-items:center;justify-content:center;gap:9px;background:#FEE500;color:#1C1C1C;height:54px;padding:0 15px;border-radius:var(--r-md);font-family:inherit;font-size:15px;font-weight:800;border:none;cursor:pointer;transition:filter .12s,transform .1s;width:100%;}
 .btn-kakao:active{transform:scale(.98);filter:brightness(.96);}
-.btn-naver{display:flex;align-items:center;justify-content:center;gap:9px;background:#03C75A;color:#fff;padding:15px;border-radius:var(--r-md);font-family:inherit;font-size:15px;font-weight:800;border:none;cursor:pointer;}
+.btn-naver{display:flex;align-items:center;justify-content:center;gap:9px;background:#03C75A;color:#fff;height:54px;padding:0 15px;border-radius:var(--r-md);font-family:inherit;font-size:15px;font-weight:800;border:none;cursor:pointer;width:100%;}
 .btn-naver:active{transform:scale(.98);}
 .auth-or{display:flex;align-items:center;gap:10px;padding:4px 0;}
 .auth-or span{font-size:12px;color:var(--text4);}
 .auth-or::before,.auth-or::after{content:'';flex:1;height:1px;background:var(--border);}
-.btn-email{display:flex;align-items:center;justify-content:center;gap:9px;background:var(--bg);color:var(--text2);padding:15px;border-radius:var(--r-md);font-family:inherit;font-size:15px;font-weight:400;border:1.5px solid var(--border);cursor:pointer;}
+.btn-email{display:flex;align-items:center;justify-content:center;gap:9px;background:var(--bg);color:var(--text2);height:54px;padding:0 15px;border-radius:var(--r-md);font-family:inherit;font-size:15px;font-weight:400;border:1.5px solid var(--border);cursor:pointer;width:100%;}
 .btn-email:active{background:#EAE6DE;}
 .auth-ft{padding:8px 28px 24px;text-align:center;flex-shrink:0;}
 .auth-ft p{font-size:12px;color:var(--text4);line-height:1.7;}
@@ -366,31 +366,33 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 .loc-screen-close{width:32px;height:32px;border-radius:50%;background:var(--bg);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text2);}
 .loc-screen-desc{font-size:13px;color:var(--text4);line-height:1.5;}
 
-/* 지역 변경 플로팅 버튼 (결과 화면 우하단) */
+/* 지역 변경 플로팅 버튼 — 토스트와 같은 위치 (하단 중앙) */
 .loc-fab{
-  position:absolute;
-  bottom:calc(80px + env(safe-area-inset-bottom,0px));
-  right:16px;
+  position:fixed;
+  bottom:88px;
+  left:50%;
+  transform:translateX(-50%);
   display:none;
   align-items:center;
   gap:6px;
-  background:rgba(28,56,38,.72);
+  background:rgba(28,56,38,.88);
   backdrop-filter:blur(8px);
   -webkit-backdrop-filter:blur(8px);
   color:#fff;
   font-family:inherit;
   font-size:13px;
   font-weight:800;
-  padding:10px 16px;
+  padding:10px 20px;
   border-radius:var(--r-pill);
   border:none;
   cursor:pointer;
-  box-shadow:0 3px 12px rgba(28,56,38,.22);
+  box-shadow:0 3px 16px rgba(28,56,38,.3);
   z-index:150;
   letter-spacing:-.01em;
   transition:filter .12s, transform .1s;
+  white-space:nowrap;
 }
-.loc-fab:active{filter:brightness(.88);transform:scale(.96);}
+.loc-fab:active{filter:brightness(.88);transform:translateX(-50%) scale(.96);}
 
 /* 지역 미설정 시 결과 화면의 빈 상태 */
 .loc-empty{
@@ -593,7 +595,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
       <h1 class="spl-brand">단단</h1>
       <p class="spl-en" id="spl-en">DANDAN</p>
       <p class="spl-tag">혼자 사는 삶에 필요한 모든 것,<br>단단이 야무지게 챙겨드릴게요.</p>
-      <button class="spl-btn" onclick="goTo('sc-feed')">30초 만에 시작하기</button>
+      <button class="spl-btn" onclick="startOnboarding()">시작하기</button>
       <button class="spl-link" onclick="goTo('sc-auth')">이미 계정이 있어요</button>
     </div>
   </div>
@@ -628,7 +630,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
       <p>가입 시 <a href="#">서비스 이용약관</a> 및 <a href="#">개인정보 처리방침</a>에 동의하게 됩니다.</p>
     </div>
   </div>
-  <button class="auth-skip" onclick="goBack()">지금은 괜찮아요, 나중에 할게요</button>
+  <button class="auth-skip" onclick="pendingLocation=null;goTo('sc-feed')">지금은 괜찮아요, 나중에 할게요</button>
 </div>
 
 <!-- ══════════════════════════════
@@ -702,113 +704,25 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 </div>
 
 <!-- ══════════════════════════════
-  PROFILE SETUP (나이/지역/소득/주거 — 모두 선택)
+  PROFILE SETUP — 닉네임만 (나이/소득/주거 제거)
 ══════════════════════════════ -->
 <div class="screen" id="sc-profile">
   <div class="top-nav">
-    <button class="back-btn" onclick="profileBack()">←</button>
-    <span class="top-nav-title" id="profile-step-title">내 정보 입력</span>
+    <button class="back-btn" onclick="goBack()">←</button>
+    <span class="top-nav-title">거의 다 왔어요!</span>
   </div>
-
-  <!-- step 1: 나이 -->
-  <div id="ps-1" style="display:none;flex-direction:column;flex:1;">
-    <div class="scroll-area">
-      <div class="ph">
-        <div class="prog"><div class="ps on"></div><div class="ps"></div><div class="ps"></div><div class="ps"></div></div>
-        <div class="pq">몇 살이세요? <span class="opt-lbl">(선택)</span></div>
-        <div class="phint">나이에 맞는 것들을 딱 골라드릴게요</div>
+  <div class="scroll-area">
+    <div style="padding:32px 24px 8px;">
+      <div style="font-size:24px;font-weight:800;color:var(--text1);letter-spacing:-.03em;line-height:1.35;margin-bottom:8px;">
+        단단, 시작할 준비 됐어요 🌱
       </div>
-      <div class="pb">
-        <div class="age-c">
-          <span class="age-big" id="age-num">28</span><span class="age-unit">세</span>
-        </div>
-        <input type="range" class="dr" min="19" max="80" value="28" oninput="document.getElementById('age-num').textContent=this.value">
-        <div class="r-labels"><span>19세</span><span>80세</span></div>
+      <div style="font-size:14px;color:var(--text3);line-height:1.7;">
+        지역만 설정하면 바로 맞춤 혜택을 찾아드릴게요.
       </div>
-    </div>
-    <div class="pf">
-      <button class="btn-primary" onclick="showPS(2)">다음 →</button>
     </div>
   </div>
-
-  <!-- step 2: 지역 -->
-  <div id="ps-2" style="display:none;flex-direction:column;flex:1;">
-    <div class="scroll-area">
-      <div class="ph">
-        <div class="prog"><div class="ps done"></div><div class="ps on"></div><div class="ps"></div><div class="ps"></div></div>
-        <div class="pq">어디에 살고 계세요? <span class="opt-lbl">(선택)</span></div>
-        <div class="phint">우리 동네 소식까지 빠짐없이 챙겨드릴게요</div>
-      </div>
-      <div class="pb">
-        <div class="chip-sec">
-          <div class="chip-sec-lbl">광역시·도</div>
-          <div style="position:relative;margin-bottom:12px;">
-            <select class="lc-select placeholder" id="ps-sel-city" onchange="onPsCityChange(this)"
-              style="width:100%;">
-            </select>
-            <span style="pointer-events:none;position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text3);">▾</span>
-          </div>
-        </div>
-        <div class="chip-sec" id="ps-dist-sec" style="display:none;">
-          <div class="chip-sec-lbl">시·군·구 <span style="font-weight:400;text-transform:none;letter-spacing:0">(선택)</span></div>
-          <div style="position:relative;">
-            <select class="lc-select placeholder" id="ps-sel-district" onchange="onPsDistrictChange(this)"
-              style="width:100%;">
-              <option value="" disabled selected>시·군·구 선택 (선택)</option>
-            </select>
-            <span style="pointer-events:none;position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text3);">▾</span>
-          </div>
-        </div>
-        <div id="ps-region-notice"></div>
-      </div>
-    </div>
-    <div class="pf">
-      <button class="btn-primary" onclick="showPS(3)">다음 →</button>
-    </div>
-  </div>
-
-  <!-- step 3: 소득 -->
-  <div id="ps-3" style="display:none;flex-direction:column;flex:1;">
-    <div class="scroll-area">
-      <div class="ph">
-        <div class="prog"><div class="ps done"></div><div class="ps done"></div><div class="ps on"></div><div class="ps"></div></div>
-        <div class="pq">소득이 어느 정도예요? <span class="opt-lbl">(선택)</span></div>
-        <div class="phint">정확하지 않아도 괜찮아요. 대략적으로만요!</div>
-      </div>
-      <div class="pb">
-        <div class="inc-opts">
-          <div class="inc-opt" onclick="pickInc(0)" id="i-0"><div class="inc-name">월 100만원 미만</div><div class="inc-sub">기초생활수급자 포함 · 중위소득 30% 이하</div></div>
-          <div class="inc-opt" onclick="pickInc(1)" id="i-1"><div class="inc-name">월 100~200만원</div><div class="inc-sub">차상위계층 포함 · 중위소득 50% 이하</div></div>
-          <div class="inc-opt" onclick="pickInc(2)" id="i-2"><div class="inc-name">월 200~350만원</div><div class="inc-sub">중위소득 100% 이하 (근로자 평균 수준)</div></div>
-          <div class="inc-opt" onclick="pickInc(3)" id="i-3"><div class="inc-name">월 350만원 이상</div><div class="inc-sub">중위소득 100% 초과</div></div>
-        </div>
-      </div>
-    </div>
-    <div class="pf">
-      <button class="btn-primary" onclick="showPS(4)">다음 →</button>
-    </div>
-  </div>
-
-  <!-- step 4: 주거 -->
-  <div id="ps-4" style="display:none;flex-direction:column;flex:1;">
-    <div class="scroll-area">
-      <div class="ph">
-        <div class="prog"><div class="ps done"></div><div class="ps done"></div><div class="ps done"></div><div class="ps on"></div></div>
-        <div class="pq">어떤 집에 사세요? <span class="opt-lbl">(선택)</span></div>
-        <div class="phint">집 유형에 맞게 필요한 것들을 챙겨드릴게요</div>
-      </div>
-      <div class="pb">
-        <div class="hsg-grid">
-          <button class="hsg-opt" data-value="월세" onclick="pickHsg(this)"><span class="hico">🏠</span>월세</button>
-          <button class="hsg-opt" data-value="전세" onclick="pickHsg(this)"><span class="hico">🏘️</span>전세</button>
-          <button class="hsg-opt" data-value="자가 (내 집)" onclick="pickHsg(this)"><span class="hico">🏡</span>자가 (내 집)</button>
-          <button class="hsg-opt" data-value="고시원/기숙사" onclick="pickHsg(this)"><span class="hico">🏢</span>고시원/기숙사</button>
-        </div>
-      </div>
-    </div>
-    <div class="pf">
-      <button class="btn-primary" onclick="finishSetup()">단단하게 시작해요 🌱</button>
-    </div>
+  <div style="padding:16px 24px 32px;flex-shrink:0;">
+    <button class="btn-primary" onclick="finishSetup()">우리 동네 설정하러 가기 📍</button>
   </div>
 </div>
 
@@ -836,20 +750,8 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
         <div class="nick-status" id="edit-nick-status"></div>
       </div>
 
-      <!-- 나이 -->
-      <div class="edit-section">
-        <div class="edit-label">나이 <span class="edit-opt">(선택)</span></div>
-        <div style="text-align:center;padding:12px 0 16px;">
-          <span style="font-size:52px;font-weight:800;color:var(--dandan);letter-spacing:-2px;line-height:1;" id="edit-age-num">28</span>
-          <span style="font-size:16px;color:var(--text3);margin-left:3px;">세</span>
-        </div>
-        <input type="range" class="dr" id="edit-age-slider" min="19" max="80" value="28"
-          oninput="document.getElementById('edit-age-num').textContent=this.value">
-        <div class="r-labels"><span>19세</span><span>80세</span></div>
-      </div>
-
       <!-- 지역 -->
-      <div class="edit-section">
+      <div class="edit-section" style="padding-bottom:8px;">
         <div class="edit-label">지역 <span class="edit-opt">(선택)</span></div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div class="lc-select-wrap">
@@ -865,28 +767,6 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
           </div>
         </div>
         <div id="edit-region-notice"></div>
-      </div>
-
-      <!-- 소득 -->
-      <div class="edit-section">
-        <div class="edit-label">소득 <span class="edit-opt">(선택)</span></div>
-        <div class="inc-opts" style="gap:8px;">
-          <div class="inc-opt" onclick="selectEditInc(this,0)" id="ei-0"><div class="inc-name">월 100만원 미만</div><div class="inc-sub">기초생활수급자 포함 · 중위소득 30% 이하</div></div>
-          <div class="inc-opt" onclick="selectEditInc(this,1)" id="ei-1"><div class="inc-name">월 100~200만원</div><div class="inc-sub">차상위계층 포함 · 중위소득 50% 이하</div></div>
-          <div class="inc-opt" onclick="selectEditInc(this,2)" id="ei-2"><div class="inc-name">월 200~350만원</div><div class="inc-sub">중위소득 100% 이하 (근로자 평균 수준)</div></div>
-          <div class="inc-opt" onclick="selectEditInc(this,3)" id="ei-3"><div class="inc-name">월 350만원 이상</div><div class="inc-sub">중위소득 100% 초과</div></div>
-        </div>
-      </div>
-
-      <!-- 거주형태 -->
-      <div class="edit-section" style="padding-bottom:8px;">
-        <div class="edit-label">거주형태 <span class="edit-opt">(선택)</span></div>
-        <div class="hsg-grid">
-          <button class="hsg-opt" data-value="월세" onclick="selectEditHsg(this)"><span class="hico">🏠</span>월세</button>
-          <button class="hsg-opt" data-value="전세" onclick="selectEditHsg(this)"><span class="hico">🏘️</span>전세</button>
-          <button class="hsg-opt" data-value="자가 (내 집)" onclick="selectEditHsg(this)"><span class="hico">🏡</span>자가 (내 집)</button>
-          <button class="hsg-opt" data-value="고시원/기숙사" onclick="selectEditHsg(this)"><span class="hico">🏢</span>고시원/기숙사</button>
-        </div>
       </div>
 
     </div>
@@ -1035,7 +915,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
         <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
       </svg>
     </button>
-    <button class="a-apply" onclick="toast('외부 신청 페이지로 이동합니다 →')">신청하러 가기 →</button>
+    <button class="a-apply" id="a-apply-btn" onclick="applyNow()">신청하러 가기 →</button>
   </div>
 </div>
 
@@ -1468,24 +1348,18 @@ async function confirmNick(){
   if(!nickValid) return;
   const nick = document.getElementById('nick-input').value.trim();
 
-  // Supabase 익명 로그인 (소셜 OAuth 미구현 단계 — 익명으로 세션 생성)
   try {
     const { data, error } = await supa.auth.signInAnonymously();
     if(error) throw error;
-    // 임시 user 생성
-    user = {
-      nickname: nick,
-      provider: pendingProvider,
-      supabase_uid: data.user?.id || null,
-    };
+    user = { nickname: nick, provider: pendingProvider, supabase_uid: data.user?.id || null };
   } catch(e) {
-    console.warn('Supabase 익명 로그인 실패, 로컬 모드로 진행:', e.message);
+    console.warn('Supabase 익명 로그인 실패, 로컬 모드:', e.message);
     user = { nickname: nick, provider: pendingProvider, supabase_uid: null };
   }
 
   takenNicks.push(nick);
-  showPS(1);
-  goTo('sc-profile');
+  // 프로필 step 없이 바로 완료
+  await finishSetup();
 }
 
 /* ═══════════════════════════════════════
@@ -1532,10 +1406,6 @@ function onPsDistrictChange(sel){
 function pickInc(i){
   for(let j=0;j<4;j++) document.getElementById('i-'+j).className='inc-opt';
   document.getElementById('i-'+i).className='inc-opt on';
-  if(user){
-    const labels=['월 100만원 미만','월 100~200만원','월 200~350만원','월 350만원 이상'];
-    user.income = labels[i];
-  }
 }
 
 function pickHsg(el){
@@ -1545,28 +1415,15 @@ function pickHsg(el){
 }
 
 async function finishSetup(){
-  if(user) user.age = parseInt(document.getElementById('age-num').textContent)||null;
   hist = hist.filter(h=>!['sc-terms','sc-nickname','sc-profile'].includes(h));
 
-  if(!selectedLocation){
-    const saved = loadSavedLocation();
-    if(saved) selectedLocation = saved;
-  } else {
-    saveLocation(selectedLocation);
-  }
-
-  // Supabase profiles 테이블에 저장
+  // Supabase profiles 저장 (닉네임만)
   if(user?.supabase_uid){
     try {
       await supa.from('profiles').upsert({
-        id:        user.supabase_uid,
-        nickname:  user.nickname,
-        provider:  user.provider,
-        age:       user.age || null,
-        region_city:     selectedLocation?.city || null,
-        region_district: selectedLocation?.district || null,
-        income:    user.income || null,
-        housing:   user.housing || null,
+        id:         user.supabase_uid,
+        nickname:   user.nickname,
+        provider:   user.provider,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
     } catch(e) {
@@ -1575,8 +1432,9 @@ async function finishSetup(){
   }
 
   refreshFeedUI();
-  goTo('sc-feed');
-  toast('단단히 준비됐어요, '+user.nickname+'님! 🌱');
+  // 항상 지역 설정 화면으로 — pendingLocation이 있으면 미리 세팅돼서 보임
+  goTo('sc-location');
+  toast(user.nickname+'님, 반가워요! 📍 아까 선택한 동네로 설정할게요.');
 }
 
 /* ═══════════════════════════════════════
@@ -1584,6 +1442,9 @@ async function finishSetup(){
 ═══════════════════════════════════════ */
 let selectedLocation = null;
 // { city, cityLabel, district, districtLabel, portal, portalName }
+
+// 비로그인 지역 선택 시 임시 저장 (가입 후 sc-location에 자동 세팅)
+let pendingLocation = null;
 
 // localStorage key (프로토타입: user 닉네임 기반으로 분리)
 function locStorageKey(){ return user ? 'dandan_loc_' + user.nickname : null; }
@@ -1602,35 +1463,65 @@ function removeSavedLocation(){
   if(key) try{ localStorage.removeItem(key); }catch(e){}
 }
 
+/* ── 온보딩 시작 (스플래시 → 지역 선택) ── */
+function startOnboarding(){
+  pendingLocation = null; // 초기화
+  goTo('sc-location');
+}
+
 /* sc-location 화면 진입 시 현재 선택 상태 복원 */
 function openLocationScreen(){
   const cur = document.getElementById('loc-current-display');
   const txt = document.getElementById('loc-current-text');
-  if(selectedLocation){
-    const l = selectedLocation.districtLabel
-      ? selectedLocation.cityLabel + ' ' + selectedLocation.districtLabel
-      : selectedLocation.cityLabel;
+
+  // pendingLocation이 있으면 미리 세팅 (가입 후 복귀 시)
+  const locToShow = selectedLocation || pendingLocation;
+  if(locToShow){
+    const l = locToShow.districtLabel
+      ? locToShow.cityLabel + ' ' + locToShow.districtLabel
+      : locToShow.cityLabel;
     txt.textContent = l;
     cur.style.display = 'block';
   } else {
     cur.style.display = 'none';
   }
+
   const citySel  = document.getElementById('loc-sel-city');
   const distWrap = document.getElementById('loc-district-wrap');
   const distSel  = document.getElementById('loc-sel-district');
 
-  // 드롭다운 옵션 재주입
   citySel.innerHTML = _buildCityOptions();
-  citySel.value = '';
-  citySel.className = 'lc-select placeholder';
-  distSel.innerHTML = '<option value="" disabled selected>시·군·구 선택 (선택)</option>';
-  distSel.className = 'lc-select placeholder';
-  distWrap.style.display = 'none';
-  document.getElementById('loc-confirm-btn').className = 'btn-primary off';
 
-  // 준비중 안내 표시
+  // pendingLocation 있으면 드롭다운도 미리 세팅
+  if(locToShow && locToShow.city && CITY_MAP[locToShow.city]){
+    citySel.value = locToShow.city;
+    citySel.className = 'lc-select';
+    _populateDistricts(locToShow.city, 'loc-sel-district', 'loc-district-wrap', 'loc-confirm-btn', 'loc-region-notice');
+    if(locToShow.district){
+      distSel.value = locToShow.district;
+      distSel.className = 'lc-select';
+    }
+    document.getElementById('loc-confirm-btn').className = 'btn-primary';
+  } else {
+    citySel.value = '';
+    citySel.className = 'lc-select placeholder';
+    distSel.innerHTML = '<option value="" disabled selected>시·군·구 선택 (선택)</option>';
+    distSel.className = 'lc-select placeholder';
+    distWrap.style.display = 'none';
+    document.getElementById('loc-confirm-btn').className = 'btn-primary off';
+  }
+
+  // 버튼 텍스트: 비로그인 온보딩 중이면 "다음 →", 로그인 상태면 "이 지역으로 설정하기"
+  const btn = document.getElementById('loc-confirm-btn');
+  if(!user && !selectedLocation){
+    btn.textContent = '다음 →';
+  } else {
+    btn.textContent = '이 지역으로 설정하기';
+  }
+
   const notice = document.getElementById('loc-region-notice');
-  if(notice) notice.innerHTML = REGION_SOON_NOTICE;
+  if(notice && !locToShow) notice.innerHTML = REGION_SOON_NOTICE;
+  else if(notice && locToShow) notice.innerHTML = '';
 }
 
 function onLocCityChange(sel){
@@ -1658,20 +1549,20 @@ function confirmFeedLocation(){
   const district = document.getElementById('feed-sel-district')?.value || null;
   const cityData = CITY_MAP[city];
 
-  selectedLocation = {
-    city, cityLabel: cityData.label,
-    district, districtLabel: district,
-    portal: cityData.portal, portalName: cityData.portalName
-  };
-
   if(user){
+    selectedLocation = {
+      city, cityLabel: cityData.label,
+      district, districtLabel: district,
+      portal: cityData.portal, portalName: cityData.portalName
+    };
     saveLocation(selectedLocation);
     refreshFeedResultUI();
-    loadPolicies(city, district);   // ← Supabase 조회
+    loadPolicies(city, district);
     toast('📍 지역이 설정됐어요!');
   } else {
+    // 비로그인: selectedLocation에 임시 저장만 하고 로그인 유도
+    // 로그인 완료 후 지역 선택 화면으로 다시 보냄
     const locLabel = district ? cityData.label + ' ' + district : cityData.label;
-    refreshFeedResultUI();
     showAuthSheet(locLabel);
   }
 }
@@ -1681,28 +1572,41 @@ function confirmLocation(){
   if(!city) return;
   const district = document.getElementById('loc-sel-district').value || null;
   const cityData = CITY_MAP[city];
-
-  selectedLocation = {
+  const loc = {
     city, cityLabel: cityData.label,
     district, districtLabel: district,
     portal: cityData.portal, portalName: cityData.portalName
   };
 
   if(user){
+    // 로그인 상태 → 저장 + 피드로
+    selectedLocation = loc;
+    pendingLocation  = null; // 사용 완료
     saveLocation(selectedLocation);
-    goBack();
+
+    // Supabase 프로필에도 지역 업데이트
+    if(user.supabase_uid){
+      supa.from('profiles').upsert({
+        id:              user.supabase_uid,
+        nickname:        user.nickname,
+        region_city:     city,
+        region_district: district || null,
+        updated_at:      new Date().toISOString(),
+      }, { onConflict: 'id' })
+      .then(({error})=>{ if(error) console.warn('지역 저장 실패:', error.message); });
+    }
+
+    hist = hist.filter(h => h !== 'sc-location');
+    goTo('sc-feed');
     setTimeout(()=>{
       refreshFeedResultUI();
-      loadPolicies(city, district);  // ← Supabase 조회
+      loadPolicies(city, district);
     }, 50);
-    toast('📍 지역이 설정됐어요!');
+    toast('📍 지역이 설정됐어요! 혜택을 찾고 있어요 🔍');
   } else {
-    const locLabel = district ? cityData.label + ' ' + district : cityData.label;
-    goBack();
-    setTimeout(()=>{
-      refreshFeedResultUI();
-      showAuthSheet(locLabel);
-    }, 50);
+    // 비로그인 온보딩 → pendingLocation 저장 + 가입 화면으로
+    pendingLocation = loc;
+    goTo('sc-auth');
   }
 }
 
@@ -1978,12 +1882,13 @@ function _checkNickname(v, currentNick, onChecking, onOk, onErr){
    카드 HTML 생성 공용 함수
 ═══════════════════════════════════════ */
 function renderCard(p){
-  const idJson = JSON.stringify(p.id); // 숫자·문자열 모두 안전하게 처리
+  const idJson = JSON.stringify(p.id);
+  const sid    = String(p.id);
   return `
     <div class="pc" onclick="openDetail(${idJson})">
       <div class="pc-head">
         <div class="pc-badges">${(p.bdgs||[]).map(b=>`<span class="bdg ${b.c}">${b.t}</span>`).join('')}</div>
-        <button class="hrt${liked.has(p.id)?' liked':''}" onclick="event.stopPropagation();toggleLike(${idJson},this)">♥</button>
+        <button class="hrt${liked.has(sid)?' liked':''}" onclick="event.stopPropagation();toggleLike(${idJson},this)">♥</button>
       </div>
       <div class="pc-body">
         <div class="pc-org">${p.org||''}</div>
@@ -2024,8 +1929,6 @@ function openDetail(id){
     <div class="info-grid">
       <div class="ib"><div class="ib-lbl">신청 기간</div><div class="ib-val">${p.period||'상시'}</div></div>
       <div class="ib"><div class="ib-lbl">신청 방법</div><div class="ib-val">${p.method||p.apply_method||'-'}</div></div>
-      <div class="ib"><div class="ib-lbl">지원 대상</div><div class="ib-val">${p.target||p.target_summary||'-'}</div></div>
-      <div class="ib"><div class="ib-lbl">매칭률</div><div class="ib-val" style="color:var(--saesak)">${p.match||75}% ✓</div></div>
     </div>
     ${conds.length ? `
     <div class="ds">
@@ -2048,13 +1951,21 @@ function openDetail(id){
   btn.textContent = liked.has(id) ? '❤️' : '🤍';
   btn.className   = 'a-like' + (liked.has(id) ? ' on' : '');
 
-  // 신청하러 가기 버튼 URL 업데이트
-  const applyBtn = document.querySelector('.a-apply');
-  if(applyBtn && p.apply_url){
-    applyBtn.onclick = () => { window.open(p.apply_url, '_blank'); };
+  // 신청하러 가기 버튼에 URL 저장
+  const applyBtn = document.getElementById('a-apply-btn');
+  if(applyBtn){
+    applyBtn.dataset.url = p.apply_url || '';
+    applyBtn.style.opacity = p.apply_url ? '1' : '0.5';
   }
 
   goTo('sc-detail');
+}
+
+function applyNow(){
+  const btn = document.getElementById('a-apply-btn');
+  const url = btn?.dataset.url;
+  if(url) window.open(url, '_blank');
+  else toast('신청 링크가 준비되지 않았어요');
 }
 
 function toggleDLike(){
@@ -2072,22 +1983,21 @@ function toggleLike(id,btn){
   renderWish();
 }
 function toggleLikeById(id){
-  if(liked.has(id)){
-    liked.delete(id);
-    // Supabase에서 삭제
+  const sid = String(id);
+  if(liked.has(sid)){
+    liked.delete(sid);
     if(user?.supabase_uid){
       supa.from('wishes')
         .delete()
         .eq('user_id', user.supabase_uid)
-        .eq('policy_id', id)
+        .eq('policy_id', sid)
         .then(({error})=>{ if(error) console.warn('찜 삭제 실패:', error.message); });
     }
   } else {
-    liked.add(id);
-    // Supabase에 저장
+    liked.add(sid);
     if(user?.supabase_uid){
       supa.from('wishes')
-        .upsert({ user_id: user.supabase_uid, policy_id: id, created_at: new Date().toISOString() },
+        .upsert({ user_id: user.supabase_uid, policy_id: sid, created_at: new Date().toISOString() },
                  { onConflict: 'user_id,policy_id' })
         .then(({error})=>{ if(error) console.warn('찜 저장 실패:', error.message); });
     }
@@ -2116,48 +2026,35 @@ const incLabels = ['월 100만원 미만','월 100~200만원','월 200~350만원
 
 function openEditProfile(){
   if(!user) return;
-  // 닉네임 세팅
+
+  // 닉네임
   const nickInput = document.getElementById('edit-nick');
   nickInput.value = user.nickname || '';
   nickInput.className = 'nick-input';
   document.getElementById('edit-nick-status').textContent = '';
-  editNickValid = true; // 현재 닉네임은 유효
+  editNickValid = true;
 
-  // 나이 세팅
-  const age = user.age || 28;
-  document.getElementById('edit-age-num').textContent = age;
-  document.getElementById('edit-age-slider').value = age;
-
-  // 지역 세팅
-  const citySel = document.getElementById('edit-sel-city');
+  // 지역
+  const citySel  = document.getElementById('edit-sel-city');
   const distWrap = document.getElementById('edit-dist-wrap');
-  const distSel = document.getElementById('edit-sel-district');
-  const loc = selectedLocation || null;
+  const distSel  = document.getElementById('edit-sel-district');
+  citySel.innerHTML = _buildCityOptions();
   citySel.value = '';
   citySel.className = 'lc-select placeholder';
   distSel.innerHTML = '<option value="" disabled selected>시·군·구 선택 (선택)</option>';
   distSel.className = 'lc-select placeholder';
   distWrap.style.display = 'none';
+
+  const loc = selectedLocation || null;
   if(loc && loc.city && CITY_MAP[loc.city]){
     citySel.value = loc.city;
     citySel.className = 'lc-select';
-    CITY_MAP[loc.city].districts.forEach(d=>{
-      const o=document.createElement('option'); o.value=d; o.textContent=d; distSel.appendChild(o);
-    });
-    distWrap.style.display = 'block';
-    if(loc.district){ distSel.value=loc.district; distSel.className='lc-select'; }
+    _populateDistricts(loc.city, 'edit-sel-district', 'edit-dist-wrap', null, 'edit-region-notice');
+    if(loc.district){ distSel.value = loc.district; distSel.className = 'lc-select'; }
   }
 
-  // 소득 세팅
-  for(let i=0;i<4;i++){
-    document.getElementById('ei-'+i).className = 'inc-opt' +
-      (user.income === incLabels[i] ? ' on' : '');
-  }
-
-  // 거주형태 세팅
-  document.querySelectorAll('#sc-edit .hsg-opt').forEach(btn=>{
-    btn.classList.toggle('on', btn.dataset.value === (user.housing||''));
-  });
+  const notice = document.getElementById('edit-region-notice');
+  if(notice) notice.innerHTML = loc ? '' : REGION_SOON_NOTICE;
 
   goTo('sc-edit');
 }
@@ -2195,32 +2092,19 @@ function onEditCityChange(sel){
   _populateDistricts(sel.value, 'edit-sel-district', 'edit-dist-wrap', null, 'edit-region-notice');
 }
 
-function selectEditInc(el, i){
-  document.querySelectorAll('#sc-edit .inc-opt').forEach(b=>b.classList.remove('on'));
-  el.classList.add('on');
-}
-
-function selectEditHsg(el){
-  document.querySelectorAll('#sc-edit .hsg-opt').forEach(b=>b.classList.remove('on'));
-  el.classList.add('on');
-}
 
 function saveEdit(){
   if(!editNickValid){ toast('닉네임을 확인해 주세요'); return; }
   const newNick = document.getElementById('edit-nick').value.trim();
 
-  // 닉네임 변경 시 takenNicks 갱신 + 이전 localStorage 키 정리
+  // 닉네임 변경 시 처리
   if(newNick !== user.nickname){
-    // 이전 저장 데이터 삭제 (닉네임 기반 키이므로 반드시 교체 전 지움)
     removeSavedLocation();
     const idx = takenNicks.indexOf(user.nickname);
     if(idx > -1) takenNicks.splice(idx, 1);
     takenNicks.push(newNick);
     user.nickname = newNick;
   }
-
-  // 나이
-  user.age = parseInt(document.getElementById('edit-age-slider').value) || null;
 
   // 지역
   const city = document.getElementById('edit-sel-city').value;
@@ -2234,16 +2118,21 @@ function saveEdit(){
     saveLocation(selectedLocation);
   }
 
-  // 소득
-  const incEl = document.querySelector('#sc-edit .inc-opt.on');
-  user.income = incEl ? incEl.querySelector('.inc-name').textContent : null;
-
-  // 거주형태 — data-value 사용
-  const hsgEl = document.querySelector('#sc-edit .hsg-opt.on');
-  user.housing = hsgEl ? hsgEl.dataset.value : null;
+  // Supabase 저장
+  if(user?.supabase_uid){
+    supa.from('profiles').upsert({
+      id:              user.supabase_uid,
+      nickname:        user.nickname,
+      region_city:     selectedLocation?.city || null,
+      region_district: selectedLocation?.district || null,
+      updated_at:      new Date().toISOString(),
+    }, { onConflict: 'id' })
+    .then(({error})=>{ if(error) console.warn('프로필 저장 실패:', error.message); });
+  }
 
   goBack();
   refreshFeedUI();
+  if(selectedLocation) loadPolicies(selectedLocation.city, selectedLocation.district);
   toast('수정됐어요 ✓');
 }
 function renderMyPage(){
@@ -2268,13 +2157,8 @@ function renderMyPage(){
     ? (selectedLocation.districtLabel
         ? selectedLocation.cityLabel + ' ' + selectedLocation.districtLabel
         : selectedLocation.cityLabel)
-    : (user.region || null);
-  const condTags = [
-    user.age ? `${user.age}세` : null,
-    regionLabel,
-    user.income || null,
-    user.housing || null,
-  ].filter(Boolean);
+    : null;
+  const condTags = [regionLabel].filter(Boolean);
 
   el.innerHTML = `
     <div class="pg-body">

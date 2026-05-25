@@ -73,7 +73,7 @@ export default async function handler(req, res) {
   const sigunguCd = district ? SIGUNGU_CODE[district] : undefined;
   if(!sidoCd) return res.status(400).json({ error: `지원하지 않는 지역: ${city}` });
 
-  const fetchSize = parseInt(size) * 8;
+  const fetchSize = parseInt(size) * 12;
 
   const params = new URLSearchParams({
     serviceKey: apiKey,
@@ -142,17 +142,18 @@ export default async function handler(req, res) {
     //   B) sggNm 또는 org가 선택한 시군 포함 → 해당 시군 혜택 → 통과
     //   C) 다른 시군 데이터 → 제외
     if(sigunNm) {
-      // 경기도 내 다른 시군 목록 (필터 제외용)
-      const OTHER_SIGUN = [
-        '수원시','고양시','용인시','부천시','안산시','남양주시','화성시','평택시',
-        '의정부시','시흥시','파주시','광명시','김포시','광주시','군포시','오산시',
-        '이천시','안성시','의왕시','하남시','양주시','구리시','포천시','여주시',
-        '동두천시','안양시','가평군','양평군','연천군',
-        // 인천 구
-        '계양구','미추홀구','남동구','부평구','연수구',
-        // 부산 구
-        '해운대구','부산진구','동래구','사상구','사하구','수영구',
-      ].filter(s => !sigunNm.includes(s) && !s.includes(sigunNm));
+      // 경기도 내 다른 시군 목록 — 선택한 시군 제외하고 나머지 전부
+      const ALL_GYEONGGI = [
+        '수원시','성남시','용인시','부천시','안산시','남양주시','화성시','평택시',
+        '고양시','의정부시','시흥시','파주시','광명시','김포시','광주시','군포시',
+        '오산시','이천시','안성시','의왕시','하남시','양주시','구리시','포천시',
+        '여주시','동두천시','안양시','가평군','양평군','연천군',
+      ];
+      const ALL_INCHEON = ['계양구','미추홀구','남동구','부평구','연수구','서구','동구','중구'];
+      const ALL_BUSAN   = ['해운대구','부산진구','동래구','사상구','사하구','수영구',
+                           '금정구','남구','동구','영도구','연제구','강서구','북구'];
+      const OTHER_SIGUN = [...ALL_GYEONGGI,...ALL_INCHEON,...ALL_BUSAN]
+        .filter(s => !s.includes(sigunNm) && !sigunNm.includes(s));
 
       filtered = filtered.filter(p => {
         const orgText = p.org || '';
