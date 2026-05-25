@@ -5,8 +5,8 @@
  * - 단단 스키마 변환 공통 함수
  */
 
-export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-export const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY; // 크롤러는 service_role 사용
+export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || 'https://fdkgaostxnlurpetswcf.supabase.co';
+export const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 /** fetch with 2회 retry + timeout */
 export async function fetchWithRetry(url, opts = {}, retries = 2) {

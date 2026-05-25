@@ -1046,64 +1046,27 @@ let DB = [...DB_FALLBACK];
 async function loadPolicies(city, district){
   showFeedLoading(true);
   try {
-    /* ── 1순위: Vercel Function → 복지로 API ── */
-    const params = new URLSearchParams({ city });
-    if(district) params.append('district', district);
+    /* ── 1순위: Supabase (크롤링된 1인가구 맞춤 데이터) ── */
+    let q = supa
+      .from('policies')
+      .select('*')
+      .eq('region_city', city)
+      .order('match_score', { ascending: false });
+    if(district) q = q.eq('region_district', district);
 
-    const res  = await fetch(`/api/policies?${params}`);
-    const json = await res.json();
+    const { data: supaData, error } = await q;
 
-    if(res.ok && json.success && json.policies?.length > 0){
-      DB = json.policies.map(r => ({
-        id:       r.id,
-        org:      r.org,
-        cat:      r.category,
-        title:    r.title,
-        desc:     r.benefit_summary,
-        benefit:  r.benefit_detail || r.benefit_summary,
-        bdgs:     buildBadgesFromPolicy(r),
-        deadline: formatDeadline(r.apply_end),
-        dday:     calcDday(r.apply_end),
-        match:    r.match_score || 80,
-        conds:    (r.conditions_plain || []).map(c=>({i:'✅',t:c,e:''})),
-        how:      (r.apply_steps   || []).map(s=>({t:s.title||s,d:s.desc||''})),
-        period:   r.apply_end ? '~ '+formatDeadline(r.apply_end) : '상시',
-        method:   r.apply_method || '-',
-        target:   r.target_summary || '-',
-        apply_url: r.apply_url || null,
-      }));
-
+    if(!error && supaData && supaData.length > 0){
+      DB = supaData.map(r => normalizePolicy(r));
     } else {
-      /* ── 2순위: Supabase policies 테이블 ── */
-      let q = supa
-        .from('policies')
-        .select('*')
-        .eq('region_city', city)
-        .order('match_score', { ascending: false });
-      if(district) q = q.eq('region_district', district);
+      /* ── 2순위: Vercel Function → 복지로 API ── */
+      const params = new URLSearchParams({ city });
+      if(district) params.append('district', district);
+      const res  = await fetch(`/api/policies?${params}`);
+      const json = await res.json();
 
-      const { data, error } = await q;
-      if(error) throw error;
-
-      if(data && data.length > 0){
-        DB = data.map(r => ({
-          id:       r.id,
-          org:      r.org,
-          cat:      r.category,
-          title:    r.title,
-          desc:     r.benefit_summary,
-          benefit:  r.benefit_detail,
-          bdgs:     buildBadges(r),
-          deadline: formatDeadline(r.apply_end),
-          dday:     calcDday(r.apply_end),
-          match:    r.match_score || 80,
-          conds:    (r.conditions_plain||[]).map(c=>({i:'✅',t:c,e:''})),
-          how:      (r.apply_steps||[]).map(s=>({t:s.title||s,d:s.desc||''})),
-          period:   r.apply_end ? '~ '+formatDeadline(r.apply_end) : '상시',
-          method:   r.apply_method || '-',
-          target:   r.target_summary || '-',
-          apply_url: r.apply_url || null,
-        }));
+      if(res.ok && json.success && json.policies?.length > 0){
+        DB = json.policies.map(r => normalizePolicy(r));
       } else {
         /* ── 3순위: 더미 폴백 ── */
         DB = [...DB_FALLBACK];
@@ -1119,6 +1082,28 @@ async function loadPolicies(city, district){
     const cntEl = document.getElementById('result-cnt');
     if(cntEl) cntEl.textContent = ` (${cnt}개)`;
   }
+}
+
+// 공통 정규화 함수 (Supabase & 복지로 API 공용)
+function normalizePolicy(r){
+  return {
+    id:       r.id,
+    org:      r.org,
+    cat:      r.category,
+    title:    r.title,
+    desc:     r.benefit_summary,
+    benefit:  r.benefit_detail || r.benefit_summary,
+    bdgs:     buildBadgesFromPolicy(r),
+    deadline: formatDeadline(r.apply_end),
+    dday:     calcDday(r.apply_end),
+    match:    r.match_score || 80,
+    conds:    (r.conditions_plain||[]).map(c=>({i:'✅',t:c,e:''})),
+    how:      (r.apply_steps||[]).map(s=>({t:s.title||s,d:s.desc||''})),
+    period:   r.apply_end ? '~ '+formatDeadline(r.apply_end) : '상시',
+    method:   r.apply_method || '-',
+    target:   r.target_summary || '-',
+    apply_url: r.apply_url || null,
+  };
 }
 
 /* ── 날짜 헬퍼 ── */
@@ -1882,13 +1867,12 @@ function _checkNickname(v, currentNick, onChecking, onOk, onErr){
    카드 HTML 생성 공용 함수
 ═══════════════════════════════════════ */
 function renderCard(p){
-  const idJson = JSON.stringify(p.id);
-  const sid    = String(p.id);
+  const sid = String(p.id);
   return `
-    <div class="pc" onclick="openDetail(${idJson})">
+    <div class="pc" data-id="${sid}">
       <div class="pc-head">
         <div class="pc-badges">${(p.bdgs||[]).map(b=>`<span class="bdg ${b.c}">${b.t}</span>`).join('')}</div>
-        <button class="hrt${liked.has(sid)?' liked':''}" onclick="event.stopPropagation();toggleLike(${idJson},this)">♥</button>
+        <button class="hrt${liked.has(sid)?' liked':''}" data-like="${sid}">♥</button>
       </div>
       <div class="pc-body">
         <div class="pc-org">${p.org||''}</div>
@@ -2294,8 +2278,25 @@ initCitySelects();
   }
 })();
 
-// sc-feed에는 ad-slider가 없으므로 sc-location 최초 진입 시에만 초기화됨
-// (goTo 훅에서 initAdSlider(slider, dots) 호출)
+// 카드 클릭 이벤트 위임 — renderCard의 data-id 기반
+document.addEventListener('click', e => {
+  // 하트 버튼
+  const likeBtn = e.target.closest('[data-like]');
+  if(likeBtn){
+    e.stopPropagation();
+    const id = likeBtn.dataset.like;
+    toggleLikeById(id);
+    likeBtn.classList.toggle('liked', liked.has(id));
+    // 찜 탭도 갱신
+    if(document.getElementById('sc-wish').classList.contains('active')) renderWish();
+    return;
+  }
+  // 카드 전체 클릭
+  const card = e.target.closest('.pc[data-id]');
+  if(card){
+    openDetail(card.dataset.id);
+  }
+});
 
 // DANDAN 양끝 정렬
 document.fonts.ready.then(()=>{
