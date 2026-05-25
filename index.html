@@ -1,0 +1,2354 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>단단 — 혼자여도 흔들리지 않게</title>
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --dandan:#2B5C3A;--saesak:#4A9960;--isul:#8FD9A8;
+  --mint:#EAF2EC;--cream:#F0EEE8;--root:#1C3826;
+  --text1:#1C3826;--text2:#4A6B55;--text3:#8FAF98;--text4:#A09880;
+  --border:#E2DDD4;--white:#FFFFFF;--bg:#F5F2EC;
+  --r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:24px;--r-pill:100px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;background:#D0CCC4;font-family:'Pretendard','Apple SD Gothic Neo',sans-serif;}
+body{display:flex;justify-content:center;align-items:flex-start;min-height:100vh;}
+
+/* ── APP SHELL ── */
+#app{
+  width:100%;max-width:430px;
+  height:100vh;           /* 뷰포트 높이로 고정 */
+  background:var(--bg);
+  position:relative;
+  overflow:hidden;        /* 화면 전환 클리핑 */
+}
+
+/* ── SCREEN BASE ── */
+.screen{
+  position:absolute;top:0;left:0;right:0;
+  height:100%;            /* 부모(#app) 높이 = 100vh */
+  background:var(--bg);
+  display:none;
+  flex-direction:column;
+  overflow:hidden;        /* 내부 스크롤은 .scroll-area가 담당 */
+}
+.screen.active{display:flex;}
+
+/* 스크롤 가능한 본문 영역 — 하단 탭바 높이 만큼 padding 확보 */
+.scroll-area{
+  flex:1;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  /* 탭바 없는 화면은 pb-safe만 */
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+/* 탭바 있는 화면은 padding-bottom 72px 추가 */
+.scroll-area.has-nav{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px));}
+
+/* ── 화면 전환 애니메이션 ── */
+@keyframes slideR{from{transform:translateX(100%);opacity:.85}to{transform:translateX(0);opacity:1}}
+@keyframes slideL{from{transform:translateX(-38%);opacity:.7}to{transform:translateX(0);opacity:1}}
+.anim-r{animation:slideR .26s cubic-bezier(.4,0,.2,1) forwards;}
+.anim-l{animation:slideL .22s cubic-bezier(.4,0,.2,1) forwards;}
+
+/* ── TOP NAV BAR (공용) ── */
+.top-nav{
+  display:flex;align-items:center;gap:8px;
+  padding:12px 16px 12px;
+  padding-top:max(12px, env(safe-area-inset-top));
+  background:var(--white);
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.back-btn{width:36px;height:36px;border-radius:50%;background:var(--bg);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--text2);flex-shrink:0;}
+.back-btn:active{background:var(--border);}
+.top-nav-title{font-size:17px;font-weight:800;color:var(--text1);letter-spacing:-.02em;}
+
+/* ── 공용 버튼 ── */
+.btn-primary{display:block;width:100%;background:var(--dandan);color:#fff;font-family:inherit;font-size:16px;font-weight:800;padding:17px;border-radius:var(--r-xl);border:none;cursor:pointer;letter-spacing:-.02em;transition:filter .12s,transform .1s;}
+.btn-primary:active{transform:scale(.98);filter:brightness(.92);}
+.btn-primary.off{background:#C8C4BC;pointer-events:none;}
+.btn-ghost{display:block;width:100%;background:none;color:var(--text3);font-family:inherit;font-size:14px;font-weight:400;padding:12px;border-radius:var(--r-xl);border:none;cursor:pointer;text-align:center;}
+
+/* ── SPLASH ── */
+#sc-splash{background:var(--dandan);}
+#sc-splash .scroll-area{display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.spl-wrap{display:flex;flex-direction:column;align-items:center;padding:max(32px,env(safe-area-inset-top)) 32px 40px;width:100%;}
+.spl-lbl{font-size:11px;font-weight:400;color:rgba(255,255,255,.5);letter-spacing:.14em;text-transform:uppercase;margin-top:18px;margin-bottom:8px;}
+.spl-brand{font-size:56px;font-weight:800;color:#fff;letter-spacing:-.04em;line-height:1;}
+.spl-en{font-size:12px;font-weight:400;color:rgba(255,255,255,.4);letter-spacing:.5em;text-transform:uppercase;margin-top:5px;}
+.spl-tag{font-size:15px;font-weight:400;color:rgba(255,255,255,.65);text-align:center;line-height:1.7;margin-top:18px;margin-bottom:36px;}
+.spl-btn{width:100%;background:#fff;color:var(--dandan);font-family:inherit;font-size:17px;font-weight:800;padding:18px;border-radius:var(--r-pill);border:none;cursor:pointer;letter-spacing:-.02em;transition:transform .12s,filter .12s;}
+.spl-btn:active{transform:scale(.97);filter:brightness(.96);}
+.spl-link{margin-top:16px;font-size:14px;color:rgba(255,255,255,.6);background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:underline;}
+
+/* ── AUTH ── */
+#sc-auth{background:var(--white);}
+.auth-hd{padding:24px 28px 20px;flex-shrink:0;}
+.auth-hd h2{font-size:26px;font-weight:800;color:var(--text1);letter-spacing:-.03em;line-height:1.3;margin-bottom:6px;}
+.auth-hd p{font-size:14px;color:var(--text3);line-height:1.6;}
+/* 유도 배너 */
+.auth-nudge{margin:0 24px 20px;padding:14px 16px;background:var(--mint);border-radius:var(--r-md);border-left:3px solid var(--saesak);flex-shrink:0;}
+.auth-nudge-title{font-size:13px;font-weight:800;color:var(--dandan);margin-bottom:3px;}
+.auth-nudge-sub{font-size:12px;color:var(--text3);line-height:1.5;}
+.auth-btns{padding:0 24px 12px;display:flex;flex-direction:column;gap:10px;flex-shrink:0;}
+.btn-kakao{display:flex;align-items:center;justify-content:center;gap:9px;background:#FEE500;color:#1C1C1C;padding:15px;border-radius:var(--r-md);font-family:inherit;font-size:15px;font-weight:800;border:none;cursor:pointer;transition:filter .12s,transform .1s;}
+.btn-kakao:active{transform:scale(.98);filter:brightness(.96);}
+.btn-naver{display:flex;align-items:center;justify-content:center;gap:9px;background:#03C75A;color:#fff;padding:15px;border-radius:var(--r-md);font-family:inherit;font-size:15px;font-weight:800;border:none;cursor:pointer;}
+.btn-naver:active{transform:scale(.98);}
+.auth-or{display:flex;align-items:center;gap:10px;padding:4px 0;}
+.auth-or span{font-size:12px;color:var(--text4);}
+.auth-or::before,.auth-or::after{content:'';flex:1;height:1px;background:var(--border);}
+.btn-email{display:flex;align-items:center;justify-content:center;gap:9px;background:var(--bg);color:var(--text2);padding:15px;border-radius:var(--r-md);font-family:inherit;font-size:15px;font-weight:400;border:1.5px solid var(--border);cursor:pointer;}
+.btn-email:active{background:#EAE6DE;}
+.auth-ft{padding:8px 28px 24px;text-align:center;flex-shrink:0;}
+.auth-ft p{font-size:12px;color:var(--text4);line-height:1.7;}
+.auth-ft a{color:var(--saesak);text-decoration:none;font-weight:500;}
+.auth-skip{display:block;text-align:center;padding:8px 24px 16px;font-size:14px;color:var(--text4);background:none;border:none;cursor:pointer;font-family:inherit;}
+
+/* ── TERMS ── */
+#sc-terms{background:var(--white);}
+.terms-intro{padding:8px 20px 14px;font-size:14px;color:var(--text2);line-height:1.6;flex-shrink:0;}
+.terms-bd{padding:0 20px;flex-shrink:0;}
+.terms-all{display:flex;align-items:center;gap:12px;padding:16px 18px;background:var(--mint);border-radius:var(--r-md);margin-bottom:14px;cursor:pointer;}
+.terms-all span{font-size:15px;font-weight:800;color:var(--dandan);}
+.terms-item{display:flex;align-items:center;justify-content:space-between;padding:14px;border-radius:var(--r-sm);border:1.5px solid var(--border);margin-bottom:9px;cursor:pointer;transition:background .1s;}
+.terms-item:active{background:var(--bg);}
+.ti-left{display:flex;align-items:center;gap:10px;}
+.ti-left span{font-size:14px;color:var(--text1);}
+.req{font-size:11px;color:var(--saesak);font-weight:800;margin-left:3px;}
+.opt{font-size:11px;color:var(--text4);margin-left:3px;}
+.ti-arr{color:var(--text4);font-size:14px;}
+.chk{width:22px;height:22px;border-radius:50%;border:2px solid #C8C4BC;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s;}
+.chk.on{background:var(--dandan);border-color:var(--dandan);}
+.chk.on::after{content:'✓';color:#fff;font-size:11px;font-weight:800;}
+.terms-ft{padding:12px 20px 24px;flex-shrink:0;}
+
+/* ── SIGNUP — 닉네임 ── */
+#sc-nickname{background:var(--white);}
+.nick-body{padding:0 24px;flex-shrink:0;}
+.nick-input-wrap{position:relative;margin-bottom:10px;}
+.nick-input{
+  width:100%;padding:14px 16px;border-radius:var(--r-md);
+  border:1.5px solid var(--border);background:var(--bg);
+  font-family:inherit;font-size:16px;font-weight:800;color:var(--text1);
+  outline:none;transition:border-color .2s;
+}
+.nick-input:focus{border-color:var(--dandan);}
+.nick-input.err{border-color:#D85A30;}
+.nick-input.ok{border-color:var(--saesak);}
+.nick-status{font-size:12px;margin-top:6px;min-height:18px;}
+.nick-status.ok{color:var(--saesak);}
+.nick-status.err{color:#D85A30;}
+.nick-status.checking{color:var(--text4);}
+.nick-rules{margin-top:14px;padding:12px 14px;background:var(--cream);border-radius:var(--r-sm);}
+.nick-rules li{font-size:12px;color:var(--text4);line-height:1.8;list-style:none;padding-left:0;}
+.nick-rules li::before{content:'·  ';}
+
+/* ── PROFILE SETUP ── */
+#sc-profile{background:var(--bg);}
+.ph{padding:20px 24px 16px;flex-shrink:0;}
+.prog{display:flex;gap:5px;margin-bottom:20px;}
+.ps{flex:1;height:3px;border-radius:3px;background:#D8D4CA;transition:background .3s;}
+.ps.on{background:var(--dandan);}
+.ps.done{background:var(--isul);}
+.pq{font-size:22px;font-weight:800;color:var(--text1);letter-spacing:-.03em;line-height:1.35;}
+.pq .opt-lbl{font-size:13px;font-weight:400;color:var(--text4);margin-left:8px;letter-spacing:0;}
+.phint{font-size:13px;color:var(--text3);margin-top:6px;line-height:1.6;}
+.pb{padding:0 24px;flex-shrink:0;}
+.pf{padding:16px 24px 24px;flex-shrink:0;}
+
+.age-c{text-align:center;padding:20px 0 24px;}
+.age-big{font-size:80px;font-weight:800;color:var(--dandan);letter-spacing:-4px;line-height:1;}
+.age-unit{font-size:22px;color:var(--text3);margin-left:4px;}
+input[type=range].dr{width:100%;appearance:none;height:5px;border-radius:3px;background:#D8D4CA;outline:none;margin-bottom:10px;}
+input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26px;border-radius:50%;background:var(--dandan);cursor:pointer;box-shadow:0 2px 8px rgba(43,92,58,.35);}
+.r-labels{display:flex;justify-content:space-between;font-size:12px;color:var(--text4);}
+
+.chip-sec{margin-bottom:18px;}
+.chip-sec-lbl{font-size:11px;font-weight:400;color:var(--text4);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;}
+.chip-grid{display:flex;gap:8px;flex-wrap:wrap;}
+.chip{padding:10px 16px;border-radius:var(--r-pill);border:1.5px solid #C2D9C8;background:var(--white);font-family:inherit;font-size:14px;font-weight:400;color:var(--text3);cursor:pointer;transition:all .15s;white-space:nowrap;}
+.chip.on{background:var(--dandan);color:#fff;border-color:var(--dandan);font-weight:800;}
+
+.inc-opts{display:flex;flex-direction:column;gap:9px;}
+.inc-opt{padding:16px 18px;border-radius:var(--r-md);border:1.5px solid var(--border);background:var(--white);cursor:pointer;transition:all .15s;}
+.inc-opt.on{border-color:var(--dandan);background:var(--mint);}
+.inc-name{font-size:15px;font-weight:800;color:var(--text1);margin-bottom:3px;}
+.inc-opt.on .inc-name{color:var(--dandan);}
+.inc-sub{font-size:12px;color:var(--text4);}
+
+.hsg-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.hsg-opt{padding:20px 12px;border-radius:var(--r-md);border:1.5px solid var(--border);background:var(--white);font-family:inherit;font-size:14px;font-weight:400;color:var(--text2);cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;transition:all .15s;}
+.hico{font-size:28px;}
+.hsg-opt.on{border-color:var(--dandan);background:var(--mint);color:var(--dandan);font-weight:800;}
+
+/* ── FEED ── */
+#sc-feed{background:var(--bg);}
+
+/* 최상단 헤더: 로고+인증버튼만, border 없음 */
+.feed-sticky{
+  background:var(--white);
+  padding:12px 18px 14px;
+  padding-top:max(12px, env(safe-area-inset-top));
+  border-bottom:none;
+  flex-shrink:0;
+}
+.feed-toprow{display:flex;justify-content:space-between;align-items:center;}
+.feed-greet{font-size:18px;font-weight:800;color:var(--text1);letter-spacing:-.03em;}
+.feed-greet em{font-style:normal;color:var(--dandan);}
+.feed-auth-row{display:flex;gap:8px;}
+.feed-auth-btn{padding:7px 12px;border-radius:var(--r-pill);font-family:inherit;font-size:12px;font-weight:800;border:none;cursor:pointer;transition:all .15s;}
+.feed-auth-btn.login{background:var(--mint);color:var(--dandan);}
+.feed-auth-btn.signup{background:var(--dandan);color:#fff;}
+.feed-prof-btn{width:34px;height:34px;border-radius:50%;background:var(--mint);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+
+/* ── 우리 동네 카드 (헤더 바로 아래, 스크롤 영역 최상단) ── */
+.location-card{
+  margin:0 16px 16px;
+  background:var(--white);
+  border-radius:var(--r-lg);
+  border:1px solid var(--border);
+  overflow:hidden;
+}
+/* 카드 상단: 단단그린 배경 타이틀 바 */
+.lc-header{
+  background:var(--dandan);
+  padding:14px 18px 12px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.lc-header-left{display:flex;align-items:center;gap:8px;}
+.lc-header-ico{font-size:16px;}
+.lc-header-title{font-size:14px;font-weight:800;color:#fff;letter-spacing:-.01em;}
+.lc-header-sub{font-size:11px;color:rgba(255,255,255,.6);margin-top:1px;}
+.lc-header-badge{
+  font-size:11px;font-weight:800;
+  background:rgba(255,255,255,.18);
+  color:rgba(255,255,255,.9);
+  padding:4px 10px;border-radius:var(--r-pill);
+  white-space:nowrap;
+}
+/* 카드 본문: 지역 드롭다운 */
+.lc-body{padding:14px 16px 16px;}
+.lc-body-label{font-size:11px;font-weight:400;color:var(--text4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;}
+
+/* 드롭다운 행 */
+.lc-row{display:flex;gap:8px;margin-bottom:0;}
+
+/* 공용 드롭다운 래퍼 */
+.lc-select-wrap{
+  flex:1;position:relative;
+}
+.lc-select-wrap .arr{
+  pointer-events:none;position:absolute;right:12px;top:50%;
+  transform:translateY(-50%);
+  font-size:10px;color:var(--text3);
+}
+/* 드롭다운 자체 */
+.lc-select{
+  width:100%;appearance:none;-webkit-appearance:none;
+  background:var(--bg);
+  border:1.5px solid var(--border);border-radius:var(--r-md);
+  font-family:inherit;font-size:14px;font-weight:800;color:var(--dandan);
+  padding:11px 34px 11px 14px;
+  cursor:pointer;outline:none;
+  transition:border-color .15s;
+}
+.lc-select:focus{border-color:var(--dandan);}
+.lc-select.placeholder{color:var(--text3);font-weight:400;}
+
+/* 검색 버튼 */
+.lc-search-btn{
+  padding:0 18px;
+  background:var(--dandan);color:#fff;
+  font-family:inherit;font-size:14px;font-weight:800;
+  border:none;border-radius:var(--r-md);
+  cursor:pointer;white-space:nowrap;
+  transition:filter .12s,transform .1s;
+  flex-shrink:0;
+}
+.lc-search-btn:active{filter:brightness(.9);transform:scale(.97);}
+
+/* 결과 배너 (지역 선택 후 로그인 유도 또는 매칭수 표시) */
+.match-banner{
+  margin:0 16px 4px;
+  background:var(--dandan);border-radius:var(--r-lg);
+  padding:16px 18px;display:flex;justify-content:space-between;align-items:center;
+}
+.mb-left .mb-lbl{font-size:11px;color:rgba(255,255,255,.55);margin-bottom:5px;}
+.mb-left .mb-cnt{font-size:18px;font-weight:800;color:#fff;letter-spacing:-.02em;margin-bottom:4px;}
+.mb-left .mb-cond{font-size:12px;color:rgba(255,255,255,.6);}
+.mb-big{font-size:42px;font-weight:800;color:rgba(255,255,255,.18);letter-spacing:-2px;line-height:1;}
+
+/* 지역선택 후 비로그인 → 로그인 유도 바텀시트 */
+.auth-sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:400;display:flex;align-items:flex-end;justify-content:center;animation:fi .2s ease;}
+.auth-sheet{background:var(--white);border-radius:20px 20px 0 0;padding:24px 24px calc(28px + env(safe-area-inset-bottom,0px));width:100%;max-width:430px;animation:su .28s cubic-bezier(.4,0,.2,1);}
+.as-handle{width:34px;height:4px;background:#D8D4CA;border-radius:2px;margin:0 auto 20px;}
+.as-loc-tag{display:inline-flex;align-items:center;gap:5px;background:var(--mint);color:var(--dandan);font-size:12px;font-weight:800;padding:4px 10px;border-radius:var(--r-pill);margin-bottom:12px;}
+.as-title{font-size:20px;font-weight:800;color:var(--text1);letter-spacing:-.03em;line-height:1.35;margin-bottom:6px;}
+.as-sub{font-size:13px;color:var(--text4);line-height:1.6;margin-bottom:22px;}
+.as-btns{display:flex;flex-direction:column;gap:9px;}
+.as-skip{display:block;text-align:center;padding:10px;font-size:13px;color:var(--text4);background:none;border:none;cursor:pointer;font-family:inherit;}
+
+/* ── 광고 배너 구좌 ── */
+.ad-banner-wrap{margin:12px 16px 4px;}
+.ad-slider{
+  display:flex;gap:12px;
+  overflow-x:auto;
+  scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:2px;
+}
+.ad-slider::-webkit-scrollbar{display:none;}
+.ad-card{
+  min-width:calc(100% - 32px);
+  flex-shrink:0;
+  scroll-snap-align:start;
+  border-radius:var(--r-lg);
+  overflow:hidden;
+  cursor:pointer;
+  position:relative;
+}
+/* 온보딩 배너 */
+.ad-onboarding{
+  background:linear-gradient(135deg,#1C3826 0%,#2B5C3A 60%,#4A9960 100%);
+  padding:14px 18px;
+  min-height:76px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.ad-ob-text{}
+.ad-ob-eyebrow{font-size:10px;font-weight:400;color:rgba(255,255,255,.55);letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px;}
+.ad-ob-title{font-size:15px;font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1.3;}
+.ad-ob-sub{font-size:11px;color:rgba(255,255,255,.65);line-height:1.4;margin-top:2px;}
+.ad-ob-deco{
+  font-size:36px;opacity:.22;flex-shrink:0;margin-left:8px;line-height:1;
+}
+/* 일반 광고 슬롯 */
+.ad-slot{
+  background:var(--cream);
+  border:1.5px dashed var(--border);
+  border-radius:var(--r-lg);
+  padding:14px 18px;min-height:76px;
+  display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;
+}
+.ad-slot-label{font-size:10px;font-weight:400;color:var(--text4);letter-spacing:.1em;text-transform:uppercase;}
+.ad-slot-title{font-size:14px;font-weight:800;color:var(--text2);}
+.ad-slot-sub{font-size:11px;color:var(--text4);}
+/* 슬라이더 인디케이터 */
+.ad-dots{display:flex;gap:5px;justify-content:center;margin-top:7px;}
+.ad-dot{width:4px;height:4px;border-radius:50%;background:var(--border);transition:background .2s,width .2s;}
+.ad-dot.on{width:12px;border-radius:2px;background:var(--dandan);}
+
+/* ── 내정보 수정 ── */
+.edit-section{padding:20px 0;border-bottom:1px solid var(--border);}
+.edit-section:last-child{border-bottom:none;}
+.edit-label{font-size:13px;font-weight:800;color:var(--text1);letter-spacing:-.01em;margin-bottom:12px;}
+.edit-opt{font-size:12px;font-weight:400;color:var(--text4);margin-left:4px;}
+.sec-hd{padding:16px 16px 6px;display:flex;justify-content:space-between;align-items:center;}
+.sec-title{font-size:15px;font-weight:800;color:var(--text1);}
+.sort-wrap{display:flex;gap:5px;}
+.sort-btn{font-family:inherit;font-size:11px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text4);cursor:pointer;}
+.sort-btn.on{background:var(--text1);color:#fff;border-color:var(--text1);font-weight:800;}
+#sc-location{background:var(--bg);}
+.loc-screen-header{
+  background:var(--white);
+  padding:12px 18px 16px;
+  padding-top:max(12px,env(safe-area-inset-top));
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.loc-screen-toprow{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.loc-screen-title{font-size:18px;font-weight:800;color:var(--text1);letter-spacing:-.02em;}
+.loc-screen-close{width:32px;height:32px;border-radius:50%;background:var(--bg);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--text2);}
+.loc-screen-desc{font-size:13px;color:var(--text4);line-height:1.5;}
+
+/* 지역 변경 플로팅 버튼 (결과 화면 우하단) */
+.loc-fab{
+  position:absolute;
+  bottom:calc(80px + env(safe-area-inset-bottom,0px));
+  right:16px;
+  display:none;
+  align-items:center;
+  gap:6px;
+  background:rgba(28,56,38,.72);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  color:#fff;
+  font-family:inherit;
+  font-size:13px;
+  font-weight:800;
+  padding:10px 16px;
+  border-radius:var(--r-pill);
+  border:none;
+  cursor:pointer;
+  box-shadow:0 3px 12px rgba(28,56,38,.22);
+  z-index:150;
+  letter-spacing:-.01em;
+  transition:filter .12s, transform .1s;
+}
+.loc-fab:active{filter:brightness(.88);transform:scale(.96);}
+
+/* 지역 미설정 시 결과 화면의 빈 상태 */
+.loc-empty{
+  display:flex;flex-direction:column;align-items:center;
+  padding:56px 32px;text-align:center;
+}
+.loc-empty-ico{font-size:48px;margin-bottom:16px;}
+.loc-empty-title{font-size:18px;font-weight:800;color:var(--text1);letter-spacing:-.02em;margin-bottom:8px;}
+.loc-empty-sub{font-size:14px;color:var(--text4);line-height:1.7;margin-bottom:24px;}
+.loc-empty-btn{
+  background:var(--dandan);color:#fff;
+  font-family:inherit;font-size:15px;font-weight:800;
+  padding:14px 28px;border-radius:var(--r-xl);border:none;cursor:pointer;
+}
+
+.feed-list{padding:4px 16px 0;display:flex;flex-direction:column;gap:12px;}
+.pc{background:var(--white);border-radius:var(--r-lg);border:1px solid rgba(0,0,0,.06);cursor:pointer;transition:transform .12s;}
+.pc:active{transform:scale(.985);}
+.pc-head{padding:14px 14px 0;display:flex;justify-content:space-between;align-items:flex-start;}
+.pc-badges{display:flex;gap:5px;flex-wrap:wrap;}
+.bdg{font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;letter-spacing:.2px;}
+.b-red{background:#FFF0EE;color:#D85A30;}
+.b-grn{background:var(--mint);color:var(--dandan);}
+.b-blu{background:#E8F0FE;color:#1A4A8A;}
+.b-crm{background:var(--cream);color:var(--text2);}
+.hrt{background:none;border:none;cursor:pointer;font-size:20px;padding:2px;transition:transform .2s;line-height:1;color:#C2D9C8;}
+.hrt:active{transform:scale(1.35);}
+.hrt.liked{color:var(--dandan);}
+.pc-body{padding:10px 14px 12px;}
+.pc-org{font-size:11px;color:var(--text4);margin-bottom:3px;}
+.pc-title{font-size:16px;font-weight:800;color:var(--text1);letter-spacing:-.02em;line-height:1.35;margin-bottom:6px;}
+.pc-desc{font-size:13px;color:var(--text2);line-height:1.6;}
+.pc-foot{padding:0 14px 12px;display:flex;justify-content:space-between;align-items:center;}
+.pc-dday{font-size:12px;color:var(--text4);}
+.pc-dday.urg{color:#D85A30;font-weight:800;}
+.mw{display:flex;align-items:center;gap:5px;}
+.mt{width:44px;height:4px;background:#E2DDD4;border-radius:2px;overflow:hidden;}
+.mf{height:100%;border-radius:2px;background:var(--saesak);}
+.mp{font-size:12px;font-weight:800;color:var(--saesak);}
+
+/* ── BOTTOM NAV ── */
+.bnav{
+  position:absolute;bottom:0;left:0;right:0;
+  background:var(--white);
+  padding:10px 0 calc(14px + env(safe-area-inset-bottom,0px));
+  display:flex;
+  border-top:1px solid var(--border);
+  z-index:100;
+  flex-shrink:0;
+}
+.nb{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;font-family:inherit;font-size:10px;color:var(--text4);padding:4px 0;transition:color .15s;}
+.nb .ni{font-size:21px;}
+.nb.on{color:var(--dandan);}
+
+/* ── DETAIL ── */
+#sc-detail{background:var(--bg);}
+.dt-bar{background:var(--dandan);padding:12px 16px 14px;padding-top:max(12px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.dt-back{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.15);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;flex-shrink:0;}
+.dt-lbl{font-size:15px;font-weight:800;color:#fff;flex:1;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.dt-hero{background:var(--dandan);padding:0 20px 24px;flex-shrink:0;}
+.dt-bdgs{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;}
+.dt-bdg{font-size:11px;padding:3px 9px;border-radius:var(--r-pill);background:rgba(255,255,255,.15);color:rgba(255,255,255,.9);}
+.dt-title{font-size:24px;font-weight:800;color:#fff;letter-spacing:-.03em;line-height:1.3;margin-bottom:6px;}
+.dt-dday{font-size:12px;color:rgba(255,255,255,.6);}
+.dt-body{padding:20px 20px 0;}
+.hl{background:var(--mint);border-radius:var(--r-md);padding:16px 18px;margin-bottom:20px;border-left:3px solid var(--saesak);}
+.hl-lbl{font-size:11px;font-weight:800;color:var(--saesak);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;}
+.hl-val{font-size:16px;font-weight:800;color:var(--text1);line-height:1.5;}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:20px;}
+.ib{background:var(--white);border-radius:var(--r-md);padding:12px;border:1px solid var(--border);}
+.ib-lbl{font-size:10px;color:var(--text4);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;}
+.ib-val{font-size:14px;font-weight:800;color:var(--text1);}
+.ds{margin-bottom:20px;}
+.ds-title{font-size:14px;font-weight:800;color:var(--text1);padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:12px;}
+.ci{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;}
+.cico{font-size:18px;flex-shrink:0;margin-top:1px;}
+.ct{font-size:14px;color:var(--text2);line-height:1.6;}
+.ce{font-size:12px;color:var(--saesak);margin-top:2px;}
+.si{display:flex;gap:11px;margin-bottom:14px;}
+.sn{width:26px;height:26px;border-radius:50%;background:var(--dandan);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.st{font-size:14px;font-weight:800;color:var(--text1);margin-bottom:2px;}
+.sd{font-size:13px;color:var(--text4);line-height:1.5;}
+.act-bar{
+  position:absolute;bottom:0;left:0;right:0;
+  background:var(--white);padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px));
+  border-top:1px solid var(--border);z-index:100;display:flex;gap:8px;
+  flex-shrink:0;
+}
+.a-like{width:50px;border-radius:var(--r-md);background:var(--bg);border:1.5px solid var(--border);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.a-like.on{background:#FFF0EE;border-color:#F0B8A0;}
+.a-share{width:50px;border-radius:var(--r-md);background:var(--bg);border:1.5px solid var(--border);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.a-apply{flex:1;padding:14px;border-radius:var(--r-md);background:var(--dandan);border:none;font-family:inherit;font-size:15px;font-weight:800;color:#fff;cursor:pointer;transition:filter .12s;}
+.a-apply:active{filter:brightness(.92);}
+
+/* ── WISHLIST / MYPAGE ── */
+#sc-wish,#sc-my{background:var(--bg);}
+.pg-top{background:var(--white);padding:12px 20px 16px;padding-top:max(12px,env(safe-area-inset-top));border-bottom:1px solid var(--border);flex-shrink:0;}
+.pg-top h2{font-size:22px;font-weight:800;color:var(--text1);letter-spacing:-.03em;}
+.pg-top p{font-size:13px;color:var(--text4);margin-top:4px;}
+.pg-body{padding:16px 16px 0;}
+.empty{text-align:center;padding:80px 24px;}
+.empty-ico{font-size:52px;margin-bottom:16px;}
+.empty-t{font-size:18px;font-weight:800;color:var(--text1);letter-spacing:-.02em;margin-bottom:8px;}
+.empty-s{font-size:14px;color:var(--text4);line-height:1.7;}
+.my-card{background:var(--white);border-radius:var(--r-lg);padding:20px;margin-bottom:12px;border:1px solid rgba(0,0,0,.05);}
+.my-av-row{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+.my-av{width:50px;height:50px;border-radius:50%;background:var(--mint);display:flex;align-items:center;justify-content:center;}
+.my-nickname{font-size:18px;font-weight:800;color:var(--text1);letter-spacing:-.02em;}
+.my-mail{font-size:13px;color:var(--text4);margin-top:2px;}
+.my-cond-lbl{font-size:11px;color:var(--text4);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;}
+.my-tags{display:flex;gap:6px;flex-wrap:wrap;}
+.my-tag{background:var(--mint);color:var(--dandan);font-size:12px;font-weight:800;padding:5px 11px;border-radius:var(--r-pill);}
+.my-tag.empty{background:var(--cream);color:var(--text4);}
+.my-edit{margin-top:14px;width:100%;padding:11px;border-radius:var(--r-sm);border:1.5px solid #C2D9C8;background:none;font-family:inherit;font-size:13px;font-weight:800;color:var(--dandan);cursor:pointer;}
+.my-edit:active{background:var(--mint);}
+.mi{display:flex;align-items:center;justify-content:space-between;padding:15px 0;border-bottom:1px solid var(--border);cursor:pointer;}
+.mi:last-child{border-bottom:none;}
+.mi-l{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text1);}
+.mi-ico{font-size:17px;}
+.mi-arr{font-size:15px;color:var(--text4);}
+/* 비로그인 마이페이지 */
+.my-guest{text-align:center;padding:48px 24px;}
+.my-guest-ico{font-size:48px;margin-bottom:16px;}
+.my-guest-title{font-size:18px;font-weight:800;color:var(--text1);letter-spacing:-.02em;margin-bottom:8px;}
+.my-guest-sub{font-size:14px;color:var(--text4);line-height:1.7;margin-bottom:24px;}
+.my-guest-btns{display:flex;gap:9px;}
+.my-guest-btns button{flex:1;padding:13px;border-radius:var(--r-md);font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;border:none;}
+.my-guest-btns .g-login{background:var(--mint);color:var(--dandan);}
+.my-guest-btns .g-signup{background:var(--dandan);color:#fff;}
+
+/* ── 회원가입 유도 모달 (지역 선택 시) ── */
+.auth-gate-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:400;display:flex;align-items:flex-end;justify-content:center;animation:fi .2s ease;}
+@keyframes fi{from{opacity:0}to{opacity:1}}
+.auth-gate-sh{background:var(--white);border-radius:20px 20px 0 0;padding:28px 24px 40px;width:100%;max-width:430px;animation:su .28s cubic-bezier(.4,0,.2,1);}
+@keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.ag-handle{width:34px;height:4px;background:#D8D4CA;border-radius:2px;margin:0 auto 20px;}
+.ag-ico{font-size:40px;text-align:center;margin-bottom:12px;}
+.ag-title{font-size:20px;font-weight:800;color:var(--text1);letter-spacing:-.02em;text-align:center;margin-bottom:8px;}
+.ag-sub{font-size:14px;color:var(--text4);text-align:center;line-height:1.6;margin-bottom:24px;}
+.ag-btns{display:flex;flex-direction:column;gap:9px;}
+.ag-btns .btn-kakao,.ag-btns .btn-naver,.ag-btns .btn-email{justify-content:center;}
+.ag-skip{display:block;text-align:center;padding:12px;font-size:13px;color:var(--text4);background:none;border:none;cursor:pointer;font-family:inherit;}
+
+/* ── SHARE MODAL ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:400;display:flex;align-items:flex-end;justify-content:center;animation:fi .2s ease;}
+.modal-sh{background:var(--white);border-radius:20px 20px 0 0;padding:20px 20px 40px;width:100%;max-width:430px;animation:su .28s cubic-bezier(.4,0,.2,1);}
+.m-handle{width:34px;height:4px;background:#D8D4CA;border-radius:2px;margin:0 auto 18px;}
+.m-title{font-size:18px;font-weight:800;color:var(--text1);letter-spacing:-.02em;margin-bottom:10px;}
+.m-copy{font-size:13px;color:var(--text4);margin-bottom:18px;line-height:1.6;}
+.m-copy em{font-style:normal;font-weight:800;color:var(--dandan);}
+.share-btns{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.share-btn{padding:15px 12px;border-radius:var(--r-md);border:1.5px solid var(--border);background:var(--white);font-family:inherit;font-size:14px;font-weight:800;color:var(--text1);cursor:pointer;display:flex;align-items:center;gap:9px;}
+.share-btn:active{background:var(--bg);}
+.sico{font-size:20px;}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:88px;left:50%;transform:translateX(-50%);background:rgba(28,56,38,.92);color:#fff;padding:12px 20px;border-radius:var(--r-pill);font-family:inherit;font-size:14px;z-index:500;white-space:nowrap;pointer-events:none;animation:ti .25s ease,to .3s ease 1.9s forwards;}
+@keyframes ti{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes to{to{opacity:0}}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- SVG 그라디언트 defs -->
+<svg width="0" height="0" style="position:absolute;overflow:hidden;">
+  <defs>
+    <radialGradient id="trunk" cx="38%" cy="30%" r="60%"><stop offset="0%" stop-color="#C17F4A"/><stop offset="100%" stop-color="#7A4A28"/></radialGradient>
+    <radialGradient id="g-top" cx="40%" cy="28%" r="65%"><stop offset="0%" stop-color="#6BBF7A"/><stop offset="55%" stop-color="#4A9960"/><stop offset="100%" stop-color="#2E6B42"/></radialGradient>
+    <radialGradient id="g-tl" cx="35%" cy="30%" r="65%"><stop offset="0%" stop-color="#5AAD6E"/><stop offset="55%" stop-color="#3D8A52"/><stop offset="100%" stop-color="#265C36"/></radialGradient>
+    <radialGradient id="g-tr" cx="45%" cy="28%" r="65%"><stop offset="0%" stop-color="#72C47E"/><stop offset="55%" stop-color="#50A464"/><stop offset="100%" stop-color="#337046"/></radialGradient>
+    <radialGradient id="g-bl" cx="35%" cy="32%" r="65%"><stop offset="0%" stop-color="#4A9960"/><stop offset="55%" stop-color="#33774A"/><stop offset="100%" stop-color="#1F4D30"/></radialGradient>
+    <radialGradient id="g-br" cx="45%" cy="30%" r="65%"><stop offset="0%" stop-color="#55A86A"/><stop offset="55%" stop-color="#3D8A52"/><stop offset="100%" stop-color="#265C38"/></radialGradient>
+    <radialGradient id="g-bc" cx="40%" cy="30%" r="65%"><stop offset="0%" stop-color="#4A9960"/><stop offset="55%" stop-color="#306040"/><stop offset="100%" stop-color="#1C3E28"/></radialGradient>
+    <radialGradient id="g-top-d" cx="40%" cy="28%" r="65%"><stop offset="0%" stop-color="#7ED492"/><stop offset="55%" stop-color="#5AB870"/><stop offset="100%" stop-color="#368050"/></radialGradient>
+    <radialGradient id="g-tl-d" cx="35%" cy="30%" r="65%"><stop offset="0%" stop-color="#6BBF7A"/><stop offset="55%" stop-color="#4A9960"/><stop offset="100%" stop-color="#2E6442"/></radialGradient>
+    <radialGradient id="g-tr-d" cx="45%" cy="28%" r="65%"><stop offset="0%" stop-color="#85D494"/><stop offset="55%" stop-color="#60B872"/><stop offset="100%" stop-color="#3C7A4E"/></radialGradient>
+    <radialGradient id="g-bl-d" cx="35%" cy="32%" r="65%"><stop offset="0%" stop-color="#55A86A"/><stop offset="55%" stop-color="#3C8050"/><stop offset="100%" stop-color="#235034"/></radialGradient>
+    <radialGradient id="g-br-d" cx="45%" cy="30%" r="65%"><stop offset="0%" stop-color="#60B872"/><stop offset="55%" stop-color="#469460"/><stop offset="100%" stop-color="#2C6040"/></radialGradient>
+    <radialGradient id="g-bc-d" cx="40%" cy="30%" r="65%"><stop offset="0%" stop-color="#4A9960"/><stop offset="55%" stop-color="#336848"/><stop offset="100%" stop-color="#1E4230"/></radialGradient>
+  </defs>
+</svg>
+
+<!-- ══════════════════════════════
+  SPLASH
+══════════════════════════════ -->
+<div class="screen active" id="sc-splash">
+  <div class="scroll-area" style="display:flex;align-items:center;justify-content:center;background:var(--dandan);">
+    <div class="spl-wrap">
+      <svg width="80" height="86" viewBox="0 0 84 90" fill="none">
+        <rect x="33" y="62" width="18" height="22" rx="9" fill="url(#trunk)"/>
+        <circle cx="42" cy="60" r="16" fill="url(#g-bc-d)"/>
+        <circle cx="24" cy="55" r="15" fill="url(#g-bl-d)"/>
+        <circle cx="60" cy="55" r="15" fill="url(#g-br-d)"/>
+        <circle cx="26" cy="36" r="17" fill="url(#g-tl-d)"/>
+        <circle cx="58" cy="34" r="17" fill="url(#g-tr-d)"/>
+        <circle cx="42" cy="28" r="20" fill="url(#g-top-d)"/>
+      </svg>
+      <p class="spl-lbl">누구보다 야무진 내 편</p>
+      <h1 class="spl-brand">단단</h1>
+      <p class="spl-en" id="spl-en">DANDAN</p>
+      <p class="spl-tag">혼자 사는 삶에 필요한 모든 것,<br>단단이 야무지게 챙겨드릴게요.</p>
+      <button class="spl-btn" onclick="goTo('sc-feed')">30초 만에 시작하기</button>
+      <button class="spl-link" onclick="goTo('sc-auth')">이미 계정이 있어요</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+  AUTH (로그인/회원가입)
+  — 지역 선택 유도 시 또는 직접 진입
+══════════════════════════════ -->
+<div class="screen" id="sc-auth">
+  <div class="top-nav" style="background:var(--white);border-bottom:1px solid var(--border);">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <span class="top-nav-title" id="auth-nav-title">로그인 / 가입</span>
+  </div>
+  <!-- 지역 유도 시 보이는 배너 -->
+  <div class="auth-nudge" id="auth-nudge" style="display:none;">
+    <div class="auth-nudge-title">📍 우리 동네 혜택을 보려면 로그인이 필요해요</div>
+    <div class="auth-nudge-sub">가입하면 내 지역·나이에 딱 맞는 혜택만 쏙쏙 골라드려요.</div>
+  </div>
+  <div class="scroll-area">
+    <div class="auth-hd">
+      <h2 id="auth-title">단단과 함께<br>시작해요</h2>
+      <p id="auth-sub">혼자 사는 삶, 단단이 야무지게 챙겨드릴게요.</p>
+    </div>
+    <div class="auth-btns">
+      <button class="btn-kakao" onclick="startSignup('kakao')"><span style="font-size:18px">💬</span> 카카오로 시작하기</button>
+      <button class="btn-naver" onclick="startSignup('naver')"><span style="font-size:15px;font-weight:900;font-family:monospace">N</span> 네이버로 시작하기</button>
+      <div class="auth-or"><span>또는</span></div>
+      <button class="btn-email" onclick="startSignup('email')">✉️ 이메일로 시작하기</button>
+    </div>
+    <div class="auth-ft">
+      <p>가입 시 <a href="#">서비스 이용약관</a> 및 <a href="#">개인정보 처리방침</a>에 동의하게 됩니다.</p>
+    </div>
+  </div>
+  <button class="auth-skip" onclick="goBack()">지금은 괜찮아요, 나중에 할게요</button>
+</div>
+
+<!-- ══════════════════════════════
+  TERMS
+══════════════════════════════ -->
+<div class="screen" id="sc-terms">
+  <div class="top-nav">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <span class="top-nav-title">약관 동의</span>
+  </div>
+  <p class="terms-intro">서비스 이용을 위해<br>아래 약관을 확인해 주세요.</p>
+  <div class="terms-bd">
+    <div class="terms-all" onclick="toggleAll()">
+      <div class="chk" id="chk-all"></div>
+      <span>전체 동의</span>
+    </div>
+    <div class="terms-item" onclick="toggleTerm(0)">
+      <div class="ti-left"><div class="chk" id="chk-0"></div><span>서비스 이용약관<span class="req">[필수]</span></span></div>
+      <span class="ti-arr">›</span>
+    </div>
+    <div class="terms-item" onclick="toggleTerm(1)">
+      <div class="ti-left"><div class="chk" id="chk-1"></div><span>개인정보 수집·이용 동의<span class="req">[필수]</span></span></div>
+      <span class="ti-arr">›</span>
+    </div>
+    <div class="terms-item" onclick="toggleTerm(2)">
+      <div class="ti-left"><div class="chk" id="chk-2"></div><span>마감 알림 수신 동의<span class="opt">[선택]</span></span></div>
+      <span class="ti-arr">›</span>
+    </div>
+    <div class="terms-item" onclick="toggleTerm(3)">
+      <div class="ti-left"><div class="chk" id="chk-3"></div><span>마케팅 정보 수신 동의<span class="opt">[선택]</span></span></div>
+      <span class="ti-arr">›</span>
+    </div>
+  </div>
+  <div class="terms-ft">
+    <button class="btn-primary off" id="terms-next" onclick="goTo('sc-nickname')">다음 →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+  NICKNAME (닉네임 설정)
+══════════════════════════════ -->
+<div class="screen" id="sc-nickname">
+  <div class="top-nav">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <span class="top-nav-title">닉네임 설정</span>
+  </div>
+  <div class="scroll-area">
+    <div style="padding:24px 24px 8px;">
+      <div style="font-size:22px;font-weight:800;color:var(--text1);letter-spacing:-.03em;line-height:1.3;margin-bottom:6px;">어떻게 불러드릴까요?</div>
+      <div style="font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:24px;">단단 안에서 쓸 나만의 이름이에요.</div>
+    </div>
+    <div class="nick-body">
+      <div class="nick-input-wrap">
+        <input class="nick-input" id="nick-input" type="text" maxlength="12"
+          placeholder="닉네임 입력 (2~12자)"
+          oninput="onNickInput(this.value)"
+          autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div class="nick-status" id="nick-status"></div>
+      <ul class="nick-rules">
+        <li>2~12자 이내로 입력해 주세요</li>
+        <li>한글, 영문, 숫자 사용 가능</li>
+        <li>이미 사용 중인 닉네임은 쓸 수 없어요</li>
+        <li>탈퇴한 회원의 닉네임은 사용할 수 있어요</li>
+      </ul>
+    </div>
+  </div>
+  <div style="padding:16px 24px 32px;flex-shrink:0;">
+    <button class="btn-primary off" id="nick-next" onclick="confirmNick()">다음 →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+  PROFILE SETUP (나이/지역/소득/주거 — 모두 선택)
+══════════════════════════════ -->
+<div class="screen" id="sc-profile">
+  <div class="top-nav">
+    <button class="back-btn" onclick="profileBack()">←</button>
+    <span class="top-nav-title" id="profile-step-title">내 정보 입력</span>
+  </div>
+
+  <!-- step 1: 나이 -->
+  <div id="ps-1" style="display:none;flex-direction:column;flex:1;">
+    <div class="scroll-area">
+      <div class="ph">
+        <div class="prog"><div class="ps on"></div><div class="ps"></div><div class="ps"></div><div class="ps"></div></div>
+        <div class="pq">몇 살이세요? <span class="opt-lbl">(선택)</span></div>
+        <div class="phint">나이에 맞는 것들을 딱 골라드릴게요</div>
+      </div>
+      <div class="pb">
+        <div class="age-c">
+          <span class="age-big" id="age-num">28</span><span class="age-unit">세</span>
+        </div>
+        <input type="range" class="dr" min="19" max="80" value="28" oninput="document.getElementById('age-num').textContent=this.value">
+        <div class="r-labels"><span>19세</span><span>80세</span></div>
+      </div>
+    </div>
+    <div class="pf">
+      <button class="btn-primary" onclick="showPS(2)">다음 →</button>
+    </div>
+  </div>
+
+  <!-- step 2: 지역 -->
+  <div id="ps-2" style="display:none;flex-direction:column;flex:1;">
+    <div class="scroll-area">
+      <div class="ph">
+        <div class="prog"><div class="ps done"></div><div class="ps on"></div><div class="ps"></div><div class="ps"></div></div>
+        <div class="pq">어디에 살고 계세요? <span class="opt-lbl">(선택)</span></div>
+        <div class="phint">우리 동네 소식까지 빠짐없이 챙겨드릴게요</div>
+      </div>
+      <div class="pb">
+        <div class="chip-sec">
+          <div class="chip-sec-lbl">광역시·도</div>
+          <div style="position:relative;margin-bottom:12px;">
+            <select class="lc-select placeholder" id="ps-sel-city" onchange="onPsCityChange(this)"
+              style="width:100%;">
+              <option value="" disabled selected>광역시·도 선택</option>
+              <option value="서울">서울특별시</option>
+              <option value="경기">경기도</option>
+              <option value="인천">인천광역시</option>
+              <option value="부산">부산광역시</option>
+            </select>
+            <span style="pointer-events:none;position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text3);">▾</span>
+          </div>
+        </div>
+        <div class="chip-sec" id="ps-dist-sec" style="display:none;">
+          <div class="chip-sec-lbl">시·군·구 <span style="font-weight:400;text-transform:none;letter-spacing:0">(선택)</span></div>
+          <div style="position:relative;">
+            <select class="lc-select placeholder" id="ps-sel-district" onchange="onPsDistrictChange(this)"
+              style="width:100%;">
+              <option value="" disabled selected>시·군·구 선택 (선택)</option>
+            </select>
+            <span style="pointer-events:none;position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text3);">▾</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pf">
+      <button class="btn-primary" onclick="showPS(3)">다음 →</button>
+    </div>
+  </div>
+
+  <!-- step 3: 소득 -->
+  <div id="ps-3" style="display:none;flex-direction:column;flex:1;">
+    <div class="scroll-area">
+      <div class="ph">
+        <div class="prog"><div class="ps done"></div><div class="ps done"></div><div class="ps on"></div><div class="ps"></div></div>
+        <div class="pq">소득이 어느 정도예요? <span class="opt-lbl">(선택)</span></div>
+        <div class="phint">정확하지 않아도 괜찮아요. 대략적으로만요!</div>
+      </div>
+      <div class="pb">
+        <div class="inc-opts">
+          <div class="inc-opt" onclick="pickInc(0)" id="i-0"><div class="inc-name">월 100만원 미만</div><div class="inc-sub">기초생활수급자 포함 · 중위소득 30% 이하</div></div>
+          <div class="inc-opt" onclick="pickInc(1)" id="i-1"><div class="inc-name">월 100~200만원</div><div class="inc-sub">차상위계층 포함 · 중위소득 50% 이하</div></div>
+          <div class="inc-opt" onclick="pickInc(2)" id="i-2"><div class="inc-name">월 200~350만원</div><div class="inc-sub">중위소득 100% 이하 (근로자 평균 수준)</div></div>
+          <div class="inc-opt" onclick="pickInc(3)" id="i-3"><div class="inc-name">월 350만원 이상</div><div class="inc-sub">중위소득 100% 초과</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="pf">
+      <button class="btn-primary" onclick="showPS(4)">다음 →</button>
+    </div>
+  </div>
+
+  <!-- step 4: 주거 -->
+  <div id="ps-4" style="display:none;flex-direction:column;flex:1;">
+    <div class="scroll-area">
+      <div class="ph">
+        <div class="prog"><div class="ps done"></div><div class="ps done"></div><div class="ps done"></div><div class="ps on"></div></div>
+        <div class="pq">어떤 집에 사세요? <span class="opt-lbl">(선택)</span></div>
+        <div class="phint">집 유형에 맞게 필요한 것들을 챙겨드릴게요</div>
+      </div>
+      <div class="pb">
+        <div class="hsg-grid">
+          <button class="hsg-opt" data-value="월세" onclick="pickHsg(this)"><span class="hico">🏠</span>월세</button>
+          <button class="hsg-opt" data-value="전세" onclick="pickHsg(this)"><span class="hico">🏘️</span>전세</button>
+          <button class="hsg-opt" data-value="자가 (내 집)" onclick="pickHsg(this)"><span class="hico">🏡</span>자가 (내 집)</button>
+          <button class="hsg-opt" data-value="고시원/기숙사" onclick="pickHsg(this)"><span class="hico">🏢</span>고시원/기숙사</button>
+        </div>
+      </div>
+    </div>
+    <div class="pf">
+      <button class="btn-primary" onclick="finishSetup()">단단하게 시작해요 🌱</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+  EDIT PROFILE (내 정보 수정 — 한 페이지)
+══════════════════════════════ -->
+<div class="screen" id="sc-edit">
+  <div class="top-nav">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <span class="top-nav-title">내 정보 수정</span>
+    <button onclick="saveEdit()" style="margin-left:auto;background:none;border:none;cursor:pointer;font-family:inherit;font-size:14px;font-weight:800;color:var(--dandan);padding:4px 0;">저장</button>
+  </div>
+  <div class="scroll-area" style="padding-bottom:32px;">
+    <div style="padding:20px 20px 0;">
+
+      <!-- 닉네임 -->
+      <div class="edit-section">
+        <div class="edit-label">닉네임</div>
+        <div class="nick-input-wrap">
+          <input class="nick-input" id="edit-nick" type="text" maxlength="12"
+            placeholder="닉네임 입력 (2~12자)"
+            oninput="onEditNickInput(this.value)"
+            autocomplete="off" autocorrect="off" spellcheck="false">
+        </div>
+        <div class="nick-status" id="edit-nick-status"></div>
+      </div>
+
+      <!-- 나이 -->
+      <div class="edit-section">
+        <div class="edit-label">나이 <span class="edit-opt">(선택)</span></div>
+        <div style="text-align:center;padding:12px 0 16px;">
+          <span style="font-size:52px;font-weight:800;color:var(--dandan);letter-spacing:-2px;line-height:1;" id="edit-age-num">28</span>
+          <span style="font-size:16px;color:var(--text3);margin-left:3px;">세</span>
+        </div>
+        <input type="range" class="dr" id="edit-age-slider" min="19" max="80" value="28"
+          oninput="document.getElementById('edit-age-num').textContent=this.value">
+        <div class="r-labels"><span>19세</span><span>80세</span></div>
+      </div>
+
+      <!-- 지역 -->
+      <div class="edit-section">
+        <div class="edit-label">지역 <span class="edit-opt">(선택)</span></div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div class="lc-select-wrap">
+            <select class="lc-select placeholder" id="edit-sel-city" onchange="onEditCityChange(this)">
+              <option value="" disabled selected>광역시·도 선택</option>
+              <option value="서울">서울특별시</option>
+              <option value="경기">경기도</option>
+              <option value="인천">인천광역시</option>
+              <option value="부산">부산광역시</option>
+            </select>
+            <span class="arr">▾</span>
+          </div>
+          <div class="lc-select-wrap" id="edit-dist-wrap" style="display:none;">
+            <select class="lc-select placeholder" id="edit-sel-district" onchange="this.classList.toggle('placeholder',!this.value)">
+              <option value="" disabled selected>시·군·구 선택 (선택)</option>
+            </select>
+            <span class="arr">▾</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 소득 -->
+      <div class="edit-section">
+        <div class="edit-label">소득 <span class="edit-opt">(선택)</span></div>
+        <div class="inc-opts" style="gap:8px;">
+          <div class="inc-opt" onclick="selectEditInc(this,0)" id="ei-0"><div class="inc-name">월 100만원 미만</div><div class="inc-sub">기초생활수급자 포함 · 중위소득 30% 이하</div></div>
+          <div class="inc-opt" onclick="selectEditInc(this,1)" id="ei-1"><div class="inc-name">월 100~200만원</div><div class="inc-sub">차상위계층 포함 · 중위소득 50% 이하</div></div>
+          <div class="inc-opt" onclick="selectEditInc(this,2)" id="ei-2"><div class="inc-name">월 200~350만원</div><div class="inc-sub">중위소득 100% 이하 (근로자 평균 수준)</div></div>
+          <div class="inc-opt" onclick="selectEditInc(this,3)" id="ei-3"><div class="inc-name">월 350만원 이상</div><div class="inc-sub">중위소득 100% 초과</div></div>
+        </div>
+      </div>
+
+      <!-- 거주형태 -->
+      <div class="edit-section" style="padding-bottom:8px;">
+        <div class="edit-label">거주형태 <span class="edit-opt">(선택)</span></div>
+        <div class="hsg-grid">
+          <button class="hsg-opt" data-value="월세" onclick="selectEditHsg(this)"><span class="hico">🏠</span>월세</button>
+          <button class="hsg-opt" data-value="전세" onclick="selectEditHsg(this)"><span class="hico">🏘️</span>전세</button>
+          <button class="hsg-opt" data-value="자가 (내 집)" onclick="selectEditHsg(this)"><span class="hico">🏡</span>자가 (내 집)</button>
+          <button class="hsg-opt" data-value="고시원/기숙사" onclick="selectEditHsg(this)"><span class="hico">🏢</span>고시원/기숙사</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div class="screen" id="sc-feed">
+
+  <!-- 헤더: 인사말 + 인증버튼 -->
+  <div class="feed-sticky">
+    <div class="feed-toprow">
+      <div class="feed-greet" id="feed-greet">혼자여도 <em>단단하게</em> 🌱</div>
+      <div id="feed-header-right">
+        <div class="feed-auth-row">
+          <button class="feed-auth-btn login" onclick="openAuth('login')">로그인</button>
+          <button class="feed-auth-btn signup" onclick="openAuth('signup')">가입하기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 스크롤 전체 영역 -->
+  <div class="scroll-area has-nav" id="feed-scroll">
+
+    <!-- 매칭 배너 (로그인+지역 선택 시) -->
+    <div id="result-banner-wrap"></div>
+
+    <!-- 결과 영역: 지역·로그인 상태에 따라 JS가 렌더 -->
+    <div id="feed-result-section"></div>
+
+  </div><!-- /scroll-area -->
+
+  <!-- 지역 변경 플로팅 버튼 (지역 설정 시 노출) -->
+  <button class="loc-fab" id="loc-fab" onclick="goTo('sc-location')">
+    <span style="font-size:13px;">📍</span>
+    <span>지역 변경</span>
+  </button>
+
+  <div class="bnav">
+    <button class="nb on"><span class="ni">🏠</span><span>홈</span></button>
+    <button class="nb" onclick="goTo('sc-wish')"><span class="ni">🤍</span><span>챙겨둔 것</span></button>
+    <button class="nb" onclick="goTo('sc-my')"><span class="ni">👤</span><span>내 정보</span></button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+  LOCATION SELECT (지역 선택 전용 화면)
+══════════════════════════════ -->
+<div class="screen" id="sc-location">
+  <div class="loc-screen-header">
+    <div class="loc-screen-toprow">
+      <span class="loc-screen-title">📍 우리 동네 설정</span>
+      <button class="loc-screen-close" onclick="goBack()">✕</button>
+    </div>
+    <div class="loc-screen-desc">지역을 선택하면 맞춤 혜택을 찾아드려요.<br>언제든 바꿀 수 있어요.</div>
+  </div>
+  <div class="scroll-area" style="padding:20px 16px 32px;">
+
+    <!-- 현재 선택 표시 -->
+    <div id="loc-current-display" style="display:none;margin-bottom:20px;">
+      <div style="font-size:11px;font-weight:400;color:var(--text4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;">현재 선택된 지역</div>
+      <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;background:var(--mint);border-radius:var(--r-md);">
+        <span style="font-size:16px;">📍</span>
+        <span id="loc-current-text" style="font-size:15px;font-weight:800;color:var(--dandan);flex:1;"></span>
+        <button onclick="clearLocation()" style="font-size:12px;color:var(--text4);background:none;border:none;cursor:pointer;font-family:inherit;">해제</button>
+      </div>
+    </div>
+
+    <!-- 드롭다운 -->
+    <div style="font-size:11px;font-weight:400;color:var(--text4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;">지역 선택</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+      <!-- 광역시·도 -->
+      <div class="lc-select-wrap">
+        <select class="lc-select placeholder" id="loc-sel-city" onchange="onLocCityChange(this)">
+          <option value="" disabled selected>광역시·도 선택</option>
+          <option value="서울">서울특별시</option>
+          <option value="경기">경기도</option>
+          <option value="인천">인천광역시</option>
+          <option value="부산">부산광역시</option>
+        </select>
+        <span class="arr">▾</span>
+      </div>
+      <!-- 시·군·구 -->
+      <div class="lc-select-wrap" id="loc-district-wrap" style="display:none;">
+        <select class="lc-select placeholder" id="loc-sel-district" onchange="onLocDistrictChange(this)">
+          <option value="" disabled selected>시·군·구 선택 (선택)</option>
+        </select>
+        <span class="arr">▾</span>
+      </div>
+    </div>
+
+    <button class="btn-primary off" id="loc-confirm-btn" onclick="confirmLocation()">
+      이 지역으로 설정하기
+    </button>
+
+    <!-- 광고 배너 구좌 (지역 선택 화면 하단) -->
+    <div class="ad-banner-wrap" style="margin-top:28px;">
+      <div class="ad-slider" id="ad-slider">
+        <div class="ad-card" onclick="goTo('sc-splash')">
+          <div class="ad-onboarding">
+            <div class="ad-ob-text">
+              <div class="ad-ob-eyebrow">단단 소개</div>
+              <div class="ad-ob-title">30초 만에 숨겨진 내 혜택 찾기</div>
+              <div class="ad-ob-sub">나이·지역·소득으로 딱 맞는 복지 혜택을 골라드려요 →</div>
+            </div>
+            <div class="ad-ob-deco">🌱</div>
+          </div>
+        </div>
+        <div class="ad-card">
+          <div class="ad-slot">
+            <div class="ad-slot-label">광고</div>
+            <div class="ad-slot-title">광고 배너 구좌 A</div>
+            <div class="ad-slot-sub">파트너사 광고 영역</div>
+          </div>
+        </div>
+        <div class="ad-card">
+          <div class="ad-slot">
+            <div class="ad-slot-label">광고</div>
+            <div class="ad-slot-title">광고 배너 구좌 B</div>
+            <div class="ad-slot-sub">파트너사 광고 영역</div>
+          </div>
+        </div>
+      </div>
+      <div class="ad-dots" id="ad-dots">
+        <div class="ad-dot on"></div>
+        <div class="ad-dot"></div>
+        <div class="ad-dot"></div>
+      </div>
+    </div>
+
+  </div><!-- /scroll-area -->
+</div><!-- /sc-location -->
+
+<!-- ══════════════════════════════
+  DETAIL
+══════════════════════════════ -->
+<div class="screen" id="sc-detail">
+  <div class="dt-bar">
+    <button class="dt-back" onclick="goBack()">←</button>
+    <div class="dt-lbl" id="dt-lbl">프로그램 상세</div>
+  </div>
+  <div class="scroll-area" style="padding-bottom:calc(80px + env(safe-area-inset-bottom,0px));">
+    <div class="dt-hero" id="dt-hero"></div>
+    <div class="dt-body" id="dt-body"></div>
+  </div>
+  <div class="act-bar">
+    <button class="a-like" id="a-like" onclick="toggleDLike()">🤍</button>
+    <button class="a-share" onclick="showShare()" title="공유하기">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text2)">
+        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+      </svg>
+    </button>
+    <button class="a-apply" onclick="toast('외부 신청 페이지로 이동합니다 →')">신청하러 가기 →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+  WISHLIST
+══════════════════════════════ -->
+<div class="screen" id="sc-wish">
+  <div class="pg-top"><h2>단단히 챙겨둔 것들</h2><p>마감 3일 전에 꼭 알림 보내드릴게요</p></div>
+  <div class="scroll-area has-nav">
+    <div class="pg-body" id="wish-body">
+      <div class="empty"><div class="empty-ico">🤍</div><div class="empty-t">아직 챙겨둔 게 없어요</div><div class="empty-s">마음에 드는 걸 하트로 찜하면<br>마감 전에 알려드릴게요.</div></div>
+    </div>
+  </div>
+  <div class="bnav">
+    <button class="nb" onclick="goTo('sc-feed')"><span class="ni">🏠</span><span>홈</span></button>
+    <button class="nb on"><span class="ni">❤️</span><span>챙겨둔 것</span></button>
+    <button class="nb" onclick="goTo('sc-my')"><span class="ni">👤</span><span>내 정보</span></button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════
+  MYPAGE (비로그인 / 로그인 동적 렌더)
+══════════════════════════════ -->
+<div class="screen" id="sc-my">
+  <div class="pg-top"><h2>내 정보</h2></div>
+  <div class="scroll-area has-nav">
+    <div id="my-body"></div>
+  </div>
+  <div class="bnav">
+    <button class="nb" onclick="goTo('sc-feed')"><span class="ni">🏠</span><span>홈</span></button>
+    <button class="nb" onclick="goTo('sc-wish')"><span class="ni">🤍</span><span>챙겨둔 것</span></button>
+    <button class="nb on"><span class="ni">👤</span><span>내 정보</span></button>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<script>
+/* ═══════════════════════════════════════
+   SUPABASE 초기화
+═══════════════════════════════════════ */
+const SUPABASE_URL  = 'https://fdkgaostxnlurpetswcf.supabase.co';
+const SUPABASE_KEY  = 'sb_publishable_rg5m-akHosAfXoq8lC-22A_X3RP5G3u'; // sb_publishable_... 로 교체
+const supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ═══════════════════════════════════════
+   DATA — 더미 폴백 (Supabase 연동 전/실패 시 사용)
+═══════════════════════════════════════ */
+const DB_FALLBACK = [
+  {id:1,org:'서울시 주거복지센터',cat:'주거',title:'청년 월세 한시 특별지원',
+   desc:'월 최대 20만원, 최대 12개월 지원. 보증금 없이 월세로 살고 계신 청년이라면 지금 신청하세요!',
+   benefit:'월 최대 20만원 × 12개월',
+   bdgs:[{t:'🔥 마감임박',c:'b-red'},{t:'🏠 주거',c:'b-grn'}],
+   deadline:'2025.07.04',dday:3,match:98,
+   conds:[{i:'🎂',t:'만 19~34세 청년',e:'내 나이가 딱 해당돼요!'},
+          {i:'💰',t:'기준 중위소득 120% 이하',e:'혼자 살며 월 소득 약 265만원 이하면 OK'},
+          {i:'🏠',t:'임차 보증금 5천만원 이하·월세 60만원 이하',e:'월세로 혼자 사는 분'},
+          {i:'📍',t:'서울시 거주 무주택자',e:'서울에서 내 집 없이 사는 분'}],
+   how:[{t:'온라인 신청',d:'서울시 복지포털 → 공공서비스 → 청년월세지원'},
+        {t:'서류 제출',d:'주민등록등본, 임대차 계약서, 건강보험료 납부확인서'},
+        {t:'심사 및 지급',d:'신청 후 약 4주 이내 심사 완료, 매월 계좌 입금'}],
+   period:'~ 2025.07.04',method:'온라인 신청',target:'청년 (19~34세)'},
+  {id:2,org:'마포구 복지관',cat:'생활·문화',title:'1인 가구 소셜 다이닝',
+   desc:'혼자 밥 먹는 게 지겨우셨나요? 동네 이웃들과 함께하는 월 2회 공동 식사 모임이에요.',
+   benefit:'무료 참여 (식비 지원)',
+   bdgs:[{t:'🎨 생활·문화',c:'b-grn'},{t:'🆕 신규',c:'b-blu'}],
+   deadline:'2025.07.15',dday:14,match:95,
+   conds:[{i:'🏠',t:'마포구 거주 1인 가구',e:'마포구에 혼자 사시는 분 누구나'},
+          {i:'🎂',t:'연령 제한 없음',e:'20대~60대 모든 분 환영해요'}],
+   how:[{t:'전화 또는 방문 신청',d:'마포구 복지관 (02-000-0000)'},
+        {t:'오리엔테이션 참석',d:'신청 후 첫 모임에 참석하시면 돼요'}],
+   period:'~ 2025.07.15',method:'전화 신청',target:'마포구 1인 가구'},
+  {id:3,org:'서울신용보증재단',cat:'금융',title:'청년 창업자금 저금리 대출',
+   desc:'창업 아이디어가 있는 청년이라면? 연 2% 초저금리로 최대 1,000만원을 지원해드려요.',
+   benefit:'최대 1,000만원 / 연 2% 금리',
+   bdgs:[{t:'💰 금융',c:'b-crm'}],
+   deadline:'2025.08.31',dday:61,match:82,
+   conds:[{i:'🎂',t:'만 39세 이하 청년',e:'39세 이하면 신청할 수 있어요'},
+          {i:'💰',t:'중위소득 150% 이하',e:'혼자 살며 월 소득 약 332만원 이하'},
+          {i:'🏢',t:'창업 3년 이내 또는 예비창업자',e:'사업자 등록 전이어도 괜찮아요'}],
+   how:[{t:'온라인 사전심사',d:'서울신용보증재단 홈페이지에서 간단 체크'},
+        {t:'상담 신청',d:'가까운 재단 지점 방문 or 전화 상담'},
+        {t:'서류 심사 및 대출',d:'약 2~3주 소요'}],
+   period:'~ 2025.08.31',method:'온라인+방문',target:'청년 (39세 이하)'},
+  {id:4,org:'수원시 일자리지원센터',cat:'취업',title:'청년 취업 지원금 (최대 300만원)',
+   desc:'취업 준비 중이신가요? 면접복장·자격증 취득 비용 등을 최대 300만원 지원해드려요.',
+   benefit:'최대 300만원 (6개월 분할)',
+   bdgs:[{t:'💼 취업',c:'b-crm'},{t:'🔥 마감임박',c:'b-red'}],
+   deadline:'2025.07.07',dday:6,match:88,
+   conds:[{i:'🎂',t:'만 18~34세 미취업 청년',e:'아직 취업 전인 분'},
+          {i:'💰',t:'가구 중위소득 120% 이하',e:'부모님 포함 가구 소득 기준'},
+          {i:'📍',t:'수원시 거주 6개월 이상',e:'수원에서 반년 이상 사신 분'}],
+   how:[{t:'수원시 청년지원센터 방문',d:'경기 수원시 팔달구 매산로 소재'},
+        {t:'취업 계획서 제출',d:'취업 목표와 활동 계획서 작성'},
+        {t:'매월 활동 인증 후 지급',d:'구직 활동 증빙 후 매월 50만원 지급'}],
+   period:'~ 2025.07.07',method:'방문 신청',target:'미취업 청년 (18~34세)'},
+  {id:5,org:'국민건강보험공단',cat:'건강',title:'1인 가구 건강검진 무료 지원',
+   desc:'혼자 사는 분을 위해 특별 추가된 정신건강 검사와 영양 상담을 포함한 무료 건강검진이에요.',
+   benefit:'무료 건강검진 (1인가구 추가 항목)',
+   bdgs:[{t:'❤️ 건강',c:'b-grn'}],
+   deadline:'2025.12.31',dday:184,match:91,
+   conds:[{i:'🏠',t:'건강보험 가입 1인 가구',e:'직장인이든 지역가입자든 OK'},
+          {i:'🎂',t:'만 20세 이상 (짝수 연도 출생자)',e:'올해 받을 수 있는지 공단에서 확인해드려요'}],
+   how:[{t:'검진기관 예약',d:'공단 홈페이지 또는 앱에서 가까운 병원 예약'},
+        {t:'방문 검진',d:'신분증 지참 후 검진기관 방문'},
+        {t:'결과 확인',d:'약 2~4주 후 온라인/우편으로 수령'}],
+   period:'~ 2025.12.31',method:'온라인 예약',target:'건강보험 가입자'},
+  {id:6,org:'성남시 복지재단',cat:'생활·문화',title:'1인 가구 응급알림 서비스',
+   desc:'혼자 살다 급하게 아프거나 사고가 났을 때 자동으로 119에 연결되는 응급 알림 기기를 무상 설치해드려요.',
+   benefit:'기기 무상 설치 + 월 서비스 무료',
+   bdgs:[{t:'🎨 생활·문화',c:'b-grn'},{t:'🆕 신규',c:'b-blu'}],
+   deadline:'2025.09.30',dday:91,match:86,
+   conds:[{i:'📍',t:'성남시 거주 1인 가구',e:'성남에 혼자 사시는 분'},
+          {i:'💰',t:'기초생활수급자 또는 차상위계층 우선',e:'저소득층 우선이지만 일반도 신청 가능'}],
+   how:[{t:'성남시 복지재단 신청',d:'전화 또는 방문 신청'},
+        {t:'현장 방문 설치',d:'담당자가 직접 방문해 기기 설치'},
+        {t:'사용 방법 안내',d:'설치 후 사용 교육 진행 (약 30분)'}],
+   period:'~ 2025.09.30',method:'전화 신청',target:'성남시 1인 가구'},
+];
+
+// 런타임 DB — Supabase에서 로드되면 교체됨, 실패 시 폴백 유지
+let DB = [...DB_FALLBACK];
+
+/* ═══════════════════════════════════════
+   SUPABASE — 정책 데이터 로드
+   지역이 선택되면 해당 city/district 필터로 조회
+═══════════════════════════════════════ */
+async function loadPolicies(city, district){
+  showFeedLoading(true);
+  try {
+    let q = supa
+      .from('policies')
+      .select('*')
+      .eq('region_city', city)
+      .order('match_score', { ascending: false });
+
+    if(district) q = q.eq('region_district', district);
+
+    const { data, error } = await q;
+    if(error) throw error;
+
+    if(data && data.length > 0){
+      // Supabase 컬럼 → 앱 내부 포맷 변환
+      DB = data.map(r => ({
+        id:       r.id,
+        org:      r.org,
+        cat:      r.category,
+        title:    r.title,
+        desc:     r.benefit_summary,
+        benefit:  r.benefit_detail,
+        bdgs:     buildBadges(r),
+        deadline: r.apply_end ? r.apply_end.slice(0,10).replace(/-/g,'.') : '상시',
+        dday:     r.apply_end ? Math.ceil((new Date(r.apply_end)-new Date())/(1000*60*60*24)) : 999,
+        match:    r.match_score || 80,
+        conds:    Array.isArray(r.conditions_plain)
+                    ? r.conditions_plain.map(c=>({i:'✅',t:c,e:''}))
+                    : [],
+        how:      Array.isArray(r.apply_steps)
+                    ? r.apply_steps.map(s=>({t:s.title||s,d:s.desc||''}))
+                    : [],
+        period:   r.apply_end ? '~ '+r.apply_end.slice(0,10).replace(/-/g,'.') : '상시',
+        method:   r.apply_method || '-',
+        target:   r.target_summary || '-',
+        apply_url: r.apply_url || null,
+      }));
+    } else {
+      // 결과 없으면 폴백 중 해당 지역 필터
+      DB = DB_FALLBACK.filter(p =>
+        !city || p.org.includes(city === '서울' ? '서울' :
+                 city === '경기' ? '수원' :
+                 city === '부산' ? '부산' : city)
+      );
+    }
+  } catch(e) {
+    console.warn('Supabase 로드 실패, 폴백 데이터 사용:', e.message);
+    DB = [...DB_FALLBACK];
+  } finally {
+    showFeedLoading(false);
+    renderFeed();
+    const cnt = document.getElementById('feed-list')?.children.length || DB.length;
+    const cntEl = document.getElementById('result-cnt');
+    if(cntEl) cntEl.textContent = ` (${cnt}개)`;
+  }
+}
+
+// 배지 자동 생성 헬퍼
+function buildBadges(r){
+  const badges = [];
+  const dday = r.apply_end
+    ? Math.ceil((new Date(r.apply_end)-new Date())/(1000*60*60*24))
+    : 999;
+  if(dday <= 7 && dday >= 0) badges.push({t:'🔥 마감임박', c:'b-red'});
+  const catMap = {
+    '주거':{t:'🏠 주거',c:'b-grn'}, '금융':{t:'💰 금융',c:'b-crm'},
+    '생활·문화':{t:'🎨 생활·문화',c:'b-grn'}, '취업':{t:'💼 취업',c:'b-crm'},
+    '건강':{t:'❤️ 건강',c:'b-grn'}, '교육':{t:'📚 교육',c:'b-blu'},
+  };
+  if(catMap[r.category]) badges.push(catMap[r.category]);
+  return badges.length ? badges : [{t:'📋 복지',c:'b-crm'}];
+}
+
+// 피드 로딩 스피너
+function showFeedLoading(show){
+  const sec = document.getElementById('feed-result-section');
+  if(!sec) return;
+  if(show){
+    const existing = document.getElementById('feed-list');
+    if(!existing){
+      const loader = document.createElement('div');
+      loader.id = 'feed-loader';
+      loader.style.cssText = 'text-align:center;padding:48px 24px;color:var(--text3);font-size:14px;';
+      loader.textContent = '🔍 혜택을 찾고 있어요…';
+      sec.appendChild(loader);
+    }
+  } else {
+    document.getElementById('feed-loader')?.remove();
+  }
+}
+
+/* ═══════════════════════════════════════
+   STATE
+═══════════════════════════════════════ */
+// 프로토타입용 기존 닉네임 목록
+// 탈퇴회원 = deletedNicks (재사용 가능)
+const takenNicks   = ['단단이','야무진고양이','혼자지만단단'];
+const deletedNicks = ['떠나간새싹','전직1인가구'];
+
+// 필수 약관 인덱스 — 항목 추가 시 여기만 수정
+const REQUIRED_TERMS = [0, 1];
+
+let hist = [];
+let terms_ = [false,false,false,false];
+let sortMode = 'match';
+let liked = new Set();
+let curId = null;
+let nickCheckTimer = null;
+let nickValid = false;
+let pendingProvider = null; // 'kakao'|'naver'|'email'
+
+// 유저 상태
+let user = null;
+// user = { nickname, provider, age?, region?, income?, housing? }
+
+/* ═══════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════ */
+function goTo(id, back=false){
+  const cur = document.querySelector('.screen.active');
+  const next = document.getElementById(id);
+  if(!cur||!next||cur===next) return;
+  if(!back) hist.push(cur.id);
+  cur.classList.remove('active');
+  next.classList.remove('anim-r','anim-l');
+  next.classList.add('active');
+  void next.offsetWidth;
+  next.classList.add(back?'anim-l':'anim-r');
+  next.scrollTop = 0;
+  // 화면 진입 훅
+  if(id==='sc-feed')     refreshFeedUI();
+  if(id==='sc-my')       renderMyPage();
+  if(id==='sc-wish')     renderWish();
+  if(id==='sc-location') { openLocationScreen(); setTimeout(()=>initAdSlider(document.getElementById('ad-slider'), document.querySelectorAll('#ad-dots .ad-dot')), 60); }
+}
+function goBack(){
+  if(!hist.length) return;
+  goTo(hist.pop(), true);
+}
+
+/* ═══════════════════════════════════════
+   AUTH FLOW
+═══════════════════════════════════════ */
+// 스플래시·피드 헤더에서 진입
+function openAuth(mode){
+  const nudge = document.getElementById('auth-nudge');
+  nudge.style.display = 'none';
+  document.getElementById('auth-nav-title').textContent = mode==='login'?'로그인':'가입하기';
+  document.getElementById('auth-title').innerHTML = mode==='login'?'다시 돌아왔군요!<br>반가워요 😊':'단단과 함께<br>시작해요';
+  goTo('sc-auth');
+}
+
+// 지역 선택 드롭다운에서 비로그인 시 유도
+// 지역선택 유도 모달 (ln-btn 또는 기타 진입점)
+function showAuthGate(pendingRegion){
+  const bg = document.createElement('div');
+  bg.className = 'auth-gate-bg';
+  bg.innerHTML = `
+    <div class="auth-gate-sh">
+      <div class="ag-handle"></div>
+      <div class="ag-ico">📍</div>
+      <div class="ag-title">${pendingRegion} 혜택을 확인하려면<br>로그인이 필요해요</div>
+      <div class="ag-sub">가입하면 ${pendingRegion} 맞춤 혜택을<br>딱 골라서 보여드릴게요.</div>
+      <div class="ag-btns">
+        <button class="btn-kakao" onclick="closeGate();startSignup('kakao')"><span style="font-size:17px">💬</span> 카카오로 시작하기</button>
+        <button class="btn-naver" onclick="closeGate();startSignup('naver')"><span style="font-size:14px;font-weight:900;font-family:monospace">N</span> 네이버로 시작하기</button>
+        <button class="btn-email" onclick="closeGate();startSignup('email')">✉️ 이메일로 시작하기</button>
+      </div>
+      <button class="ag-skip" onclick="closeGate()">지금은 괜찮아요</button>
+    </div>
+  `;
+  bg.addEventListener('click', e=>{ if(e.target===bg) closeGate(); });
+  document.getElementById('app').appendChild(bg);
+}
+function closeGate(){ document.querySelector('.auth-gate-bg')?.remove(); }
+
+function startSignup(provider){
+  pendingProvider = provider;
+  // 약관 → 닉네임 → 프로필
+  resetTerms();
+  goTo('sc-terms');
+}
+
+/* ═══════════════════════════════════════
+   TERMS
+═══════════════════════════════════════ */
+function canProceedTerms(){ return REQUIRED_TERMS.every(i => terms_[i]); }
+function resetTerms(){
+  terms_ = [false,false,false,false];
+  ['all','0','1','2','3'].forEach(i=>{
+    const el = document.getElementById('chk-'+i);
+    if(el) el.className='chk';
+  });
+  document.getElementById('terms-next').className='btn-primary off';
+}
+function toggleTerm(i){
+  terms_[i]=!terms_[i];
+  document.getElementById('chk-'+i).className='chk'+(terms_[i]?' on':'');
+  document.getElementById('chk-all').className='chk'+(terms_.every(Boolean)?' on':'');
+  document.getElementById('terms-next').className='btn-primary'+(canProceedTerms()?'':' off');
+}
+function toggleAll(){
+  const a=terms_.every(Boolean);
+  terms_=terms_.map(()=>!a);
+  terms_.forEach((_,i)=>document.getElementById('chk-'+i).className='chk'+(terms_[i]?' on':''));
+  document.getElementById('chk-all').className='chk'+(!a?' on':'');
+  document.getElementById('terms-next').className='btn-primary'+(canProceedTerms()?'':' off');
+}
+
+/* ═══════════════════════════════════════
+   광고 슬라이더 인디케이터 — 중복 등록 방지
+═══════════════════════════════════════ */
+function initAdSlider(slider, dots){
+  if(!slider || slider._adInited) return;
+  slider._adInited = true;
+  slider.addEventListener('scroll', ()=>{
+    const idx = Math.round(slider.scrollLeft / slider.offsetWidth);
+    dots.forEach((d,i)=>d.classList.toggle('on', i===idx));
+  }, {passive:true});
+}
+
+/* ═══════════════════════════════════════
+   NICKNAME
+═══════════════════════════════════════ */
+function onNickInput(v){
+  const btn    = document.getElementById('nick-next');
+  const status = document.getElementById('nick-status');
+  const input  = document.getElementById('nick-input');
+  nickValid = false;
+  btn.className = 'btn-primary off';
+  clearTimeout(nickCheckTimer);
+  input.className = 'nick-input';
+
+  const clean = _checkNickname(v, null,
+    ()=>{ status.textContent='확인 중…'; status.className='nick-status checking'; },
+    (msg)=>{ input.className='nick-input ok'; status.textContent=msg; status.className='nick-status ok'; nickValid=true; btn.className='btn-primary'; },
+    (msg, showErr)=>{ input.className=showErr?'nick-input err':'nick-input'; status.textContent=msg; status.className='nick-status err'; }
+  );
+  if(!clean) return;
+
+  nickCheckTimer = setTimeout(()=>{
+    if(takenNicks.includes(clean)){
+      input.className='nick-input err';
+      status.textContent='이미 사용 중인 닉네임이에요 😢';
+      status.className='nick-status err';
+      nickValid=false;
+    } else {
+      input.className='nick-input ok';
+      status.textContent = deletedNicks.includes(clean)
+        ? '사용할 수 있는 닉네임이에요 ✓ (이전에 사용된 닉네임이지만 재사용 가능해요)'
+        : '사용할 수 있는 닉네임이에요 ✓';
+      status.className='nick-status ok';
+      nickValid=true;
+      btn.className='btn-primary';
+    }
+  }, 500);
+}
+
+async function confirmNick(){
+  if(!nickValid) return;
+  const nick = document.getElementById('nick-input').value.trim();
+
+  // Supabase 익명 로그인 (소셜 OAuth 미구현 단계 — 익명으로 세션 생성)
+  try {
+    const { data, error } = await supa.auth.signInAnonymously();
+    if(error) throw error;
+    // 임시 user 생성
+    user = {
+      nickname: nick,
+      provider: pendingProvider,
+      supabase_uid: data.user?.id || null,
+    };
+  } catch(e) {
+    console.warn('Supabase 익명 로그인 실패, 로컬 모드로 진행:', e.message);
+    user = { nickname: nick, provider: pendingProvider, supabase_uid: null };
+  }
+
+  takenNicks.push(nick);
+  showPS(1);
+  goTo('sc-profile');
+}
+
+/* ═══════════════════════════════════════
+   PROFILE SETUP
+═══════════════════════════════════════ */
+
+
+function showPS(n){
+  for(let i=1;i<=4;i++){
+    const e=document.getElementById('ps-'+i);
+    if(e){ e.style.display=i===n?'flex':'none'; }
+  }
+  const titles=['나이 입력','지역 입력','소득 입력','주거형태 입력'];
+  document.getElementById('profile-step-title').textContent = titles[n-1]||'내 정보 입력';
+}
+
+function profileBack(){
+  const steps=[1,2,3,4];
+  const cur = steps.find(i=>document.getElementById('ps-'+i)?.style.display==='flex');
+  if(cur && cur>1){ showPS(cur-1); }
+  else { goBack(); }
+}
+
+function skipPS(next){
+  if(next<=4) showPS(next);
+  else finishSetup();
+}
+
+/* 프로필 step 2 드롭다운 핸들러 */
+function onPsCityChange(sel){
+  sel.classList.toggle('placeholder', !sel.value);
+  _populateDistricts(sel.value, 'ps-sel-district', 'ps-dist-sec', null);
+  if(user) user.region = sel.value ? CITY_MAP[sel.value]?.label : null;
+}
+
+function onPsDistrictChange(sel){
+  sel.classList.toggle('placeholder', !sel.value);
+  if(user && sel.value){
+    const city = document.getElementById('ps-sel-city').value;
+    user.region = (CITY_MAP[city]?.label||city) + ' ' + sel.value;
+  }
+}
+
+function pickInc(i){
+  for(let j=0;j<4;j++) document.getElementById('i-'+j).className='inc-opt';
+  document.getElementById('i-'+i).className='inc-opt on';
+  if(user){
+    const labels=['월 100만원 미만','월 100~200만원','월 200~350만원','월 350만원 이상'];
+    user.income = labels[i];
+  }
+}
+
+function pickHsg(el){
+  document.querySelectorAll('.hsg-opt').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  if(user) user.housing = el.dataset.value;
+}
+
+async function finishSetup(){
+  if(user) user.age = parseInt(document.getElementById('age-num').textContent)||null;
+  hist = hist.filter(h=>!['sc-terms','sc-nickname','sc-profile'].includes(h));
+
+  if(!selectedLocation){
+    const saved = loadSavedLocation();
+    if(saved) selectedLocation = saved;
+  } else {
+    saveLocation(selectedLocation);
+  }
+
+  // Supabase profiles 테이블에 저장
+  if(user?.supabase_uid){
+    try {
+      await supa.from('profiles').upsert({
+        id:        user.supabase_uid,
+        nickname:  user.nickname,
+        provider:  user.provider,
+        age:       user.age || null,
+        region_city:     selectedLocation?.city || null,
+        region_district: selectedLocation?.district || null,
+        income:    user.income || null,
+        housing:   user.housing || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+    } catch(e) {
+      console.warn('프로필 저장 실패:', e.message);
+    }
+  }
+
+  refreshFeedUI();
+  goTo('sc-feed');
+  toast('단단히 준비됐어요, '+user.nickname+'님! 🌱');
+}
+
+/* ═══════════════════════════════════════
+   LOCATION — 전용 화면 핸들러
+═══════════════════════════════════════ */
+let selectedLocation = null;
+// { city, cityLabel, district, districtLabel, portal, portalName }
+
+// localStorage key (프로토타입: user 닉네임 기반으로 분리)
+function locStorageKey(){ return user ? 'dandan_loc_' + user.nickname : null; }
+
+function saveLocation(loc){
+  const key = locStorageKey();
+  if(key && loc) try{ localStorage.setItem(key, JSON.stringify(loc)); }catch(e){}
+}
+function loadSavedLocation(){
+  const key = locStorageKey();
+  if(!key) return null;
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }catch(e){ return null; }
+}
+function removeSavedLocation(){
+  const key = locStorageKey();
+  if(key) try{ localStorage.removeItem(key); }catch(e){}
+}
+
+/* sc-location 화면 진입 시 현재 선택 상태 복원 */
+function openLocationScreen(){
+  // 현재 선택된 지역이 있으면 화면에 표시
+  const cur = document.getElementById('loc-current-display');
+  const txt = document.getElementById('loc-current-text');
+  if(selectedLocation){
+    const l = selectedLocation.districtLabel
+      ? selectedLocation.cityLabel + ' ' + selectedLocation.districtLabel
+      : selectedLocation.cityLabel;
+    txt.textContent = l;
+    cur.style.display = 'block';
+  } else {
+    cur.style.display = 'none';
+  }
+  // 드롭다운 초기화
+  const citySel = document.getElementById('loc-sel-city');
+  const distWrap = document.getElementById('loc-district-wrap');
+  const distSel = document.getElementById('loc-sel-district');
+  citySel.value = '';
+  citySel.className = 'lc-select placeholder';
+  distSel.innerHTML = '<option value="" disabled selected>시·군·구 선택 (선택)</option>';
+  distSel.className = 'lc-select placeholder';
+  distWrap.style.display = 'none';
+  document.getElementById('loc-confirm-btn').className = 'btn-primary off';
+}
+
+function onLocCityChange(sel){
+  sel.classList.toggle('placeholder', !sel.value);
+  _populateDistricts(sel.value, 'loc-sel-district', 'loc-district-wrap', 'loc-confirm-btn');
+}
+
+function onLocDistrictChange(sel){
+  sel.classList.toggle('placeholder', !sel.value);
+}
+
+/* 피드 인라인 지역 선택 핸들러 (sc-feed 빈 상태) */
+function onFeedCityChange(sel){
+  sel.classList.toggle('placeholder', !sel.value);
+  _populateDistricts(sel.value, 'feed-sel-district', 'feed-district-wrap', 'feed-confirm-btn');
+}
+
+function onFeedDistrictChange(sel){
+  sel.classList.toggle('placeholder', !sel.value);
+}
+
+function confirmFeedLocation(){
+  const city = document.getElementById('feed-sel-city')?.value;
+  if(!city) return;
+  const district = document.getElementById('feed-sel-district')?.value || null;
+  const cityData = CITY_MAP[city];
+
+  selectedLocation = {
+    city, cityLabel: cityData.label,
+    district, districtLabel: district,
+    portal: cityData.portal, portalName: cityData.portalName
+  };
+
+  if(user){
+    saveLocation(selectedLocation);
+    refreshFeedResultUI();
+    loadPolicies(city, district);   // ← Supabase 조회
+    toast('📍 지역이 설정됐어요!');
+  } else {
+    const locLabel = district ? cityData.label + ' ' + district : cityData.label;
+    refreshFeedResultUI();
+    showAuthSheet(locLabel);
+  }
+}
+
+function confirmLocation(){
+  const city = document.getElementById('loc-sel-city').value;
+  if(!city) return;
+  const district = document.getElementById('loc-sel-district').value || null;
+  const cityData = CITY_MAP[city];
+
+  selectedLocation = {
+    city, cityLabel: cityData.label,
+    district, districtLabel: district,
+    portal: cityData.portal, portalName: cityData.portalName
+  };
+
+  if(user){
+    saveLocation(selectedLocation);
+    goBack();
+    setTimeout(()=>{
+      refreshFeedResultUI();
+      loadPolicies(city, district);  // ← Supabase 조회
+    }, 50);
+    toast('📍 지역이 설정됐어요!');
+  } else {
+    const locLabel = district ? cityData.label + ' ' + district : cityData.label;
+    goBack();
+    setTimeout(()=>{
+      refreshFeedResultUI();
+      showAuthSheet(locLabel);
+    }, 50);
+  }
+}
+
+function clearLocation(){
+  selectedLocation = null;
+  removeSavedLocation();
+  // 화면 갱신
+  document.getElementById('loc-current-display').style.display = 'none';
+  document.getElementById('loc-sel-city').value = '';
+  document.getElementById('loc-sel-city').className = 'lc-select placeholder';
+  document.getElementById('loc-district-wrap').style.display = 'none';
+  document.getElementById('loc-confirm-btn').className = 'btn-primary off';
+  // 피드도 갱신
+  refreshFeedResultUI();
+  toast('지역 설정이 해제됐어요');
+}
+
+/* ═══════════════════════════════════════
+   FEED UI 갱신
+═══════════════════════════════════════ */
+function refreshFeedUI(){
+  const headerRight = document.getElementById('feed-header-right');
+  const greet = document.getElementById('feed-greet');
+
+  if(user){
+    greet.innerHTML = user.nickname+'님을 위해 <em>단단이 챙겼어요</em>';
+    headerRight.innerHTML = `
+      <button class="feed-prof-btn" onclick="goTo('sc-my')">
+        <svg width="20" height="22" viewBox="0 0 84 90" fill="none">
+          <rect x="33" y="62" width="18" height="22" rx="9" fill="url(#trunk)"/>
+          <circle cx="42" cy="60" r="16" fill="url(#g-bc)"/>
+          <circle cx="24" cy="55" r="15" fill="url(#g-bl)"/>
+          <circle cx="60" cy="55" r="15" fill="url(#g-br)"/>
+          <circle cx="26" cy="36" r="17" fill="url(#g-tl)"/>
+          <circle cx="58" cy="34" r="17" fill="url(#g-tr)"/>
+          <circle cx="42" cy="28" r="20" fill="url(#g-top)"/>
+        </svg>
+      </button>`;
+  } else {
+    greet.innerHTML = '혼자여도 <em>단단하게</em> 🌱';
+    headerRight.innerHTML = `
+      <div class="feed-auth-row">
+        <button class="feed-auth-btn login" onclick="openAuth('login')">로그인</button>
+        <button class="feed-auth-btn signup" onclick="openAuth('signup')">가입하기</button>
+      </div>`;
+  }
+  refreshFeedResultUI();
+}
+
+function refreshFeedResultUI(){
+  const fab      = document.getElementById('loc-fab');
+  const bannerWrap = document.getElementById('result-banner-wrap');
+  const resultSec  = document.getElementById('feed-result-section');
+
+  /* ── 플로팅 버튼 ── */
+  if(fab) fab.style.display = selectedLocation ? 'flex' : 'none';
+
+  /* ── 결과 영역 ── */
+  if(!selectedLocation){
+    bannerWrap.innerHTML = '';
+    resultSec.innerHTML = `
+      <div style="padding:20px 16px 8px;">
+        <div style="font-size:16px;font-weight:800;color:var(--text1);letter-spacing:-.02em;margin-bottom:4px;">📍 우리 동네 설정</div>
+        <div style="font-size:13px;color:var(--text4);line-height:1.6;margin-bottom:18px;">지역을 선택하면 주변 혜택을 딱 골라서 보여드릴게요.</div>
+
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">
+          <div class="lc-select-wrap">
+            <select class="lc-select placeholder" id="feed-sel-city" onchange="onFeedCityChange(this)">
+              <option value="" disabled selected>광역시·도 선택</option>
+              <option value="서울">서울특별시</option>
+              <option value="경기">경기도</option>
+              <option value="인천">인천광역시</option>
+              <option value="부산">부산광역시</option>
+            </select>
+            <span class="arr">▾</span>
+          </div>
+          <div class="lc-select-wrap" id="feed-district-wrap" style="display:none;">
+            <select class="lc-select placeholder" id="feed-sel-district" onchange="onFeedDistrictChange(this)">
+              <option value="" disabled selected>시·군·구 선택 (선택)</option>
+            </select>
+            <span class="arr">▾</span>
+          </div>
+        </div>
+
+        <button class="btn-primary off" id="feed-confirm-btn" onclick="confirmFeedLocation()">
+          이 지역으로 설정하기
+        </button>
+      </div>`;
+    return;
+  }
+
+  const locLabel = selectedLocation.districtLabel
+    ? selectedLocation.cityLabel + ' ' + selectedLocation.districtLabel
+    : selectedLocation.cityLabel;
+
+  if(user){
+    // 로그인 + 지역 → 결과 리스트 (배너 없음)
+    bannerWrap.innerHTML = '';
+    resultSec.innerHTML = `
+      <div class="sec-hd">
+        <div class="sec-title" id="result-sec-title">
+          📍 <button onclick="goTo('sc-location')" style="background:none;border:none;cursor:pointer;font-family:inherit;font-size:inherit;font-weight:inherit;color:var(--dandan);text-decoration:underline;text-underline-offset:2px;padding:0;">${locLabel}</button><span id="result-cnt"></span> 혜택
+        </div>
+        <div class="sort-wrap">
+          <button class="sort-btn on" onclick="setSort(this,'match')">추천순</button>
+          <button class="sort-btn" onclick="setSort(this,'deadline')">마감임박순</button>
+        </div>
+      </div>
+      <div class="feed-list" id="feed-list"></div>
+      <div style="height:16px;"></div>`;
+    renderFeed();
+    // 개수 반영 — #result-cnt span에 직접 기입
+    const cnt = document.getElementById('feed-list')?.children.length || DB.length;
+    const cntEl = document.getElementById('result-cnt');
+    if(cntEl) cntEl.textContent = ` (${cnt}개)`;
+  } else {
+    // 비로그인 + 지역 설정됨 → 칩바는 보이지만 결과는 잠김 안내
+    bannerWrap.innerHTML = '';
+    resultSec.innerHTML = `
+      <div class="loc-empty">
+        <div class="loc-empty-ico">🔒</div>
+        <div class="loc-empty-title">${locLabel} 혜택,<br>로그인하면 볼 수 있어요</div>
+        <div class="loc-empty-sub">가입하면 나이·소득까지 맞춰서<br>딱 맞는 혜택만 골라드려요.</div>
+        <button class="loc-empty-btn" onclick="showAuthSheet('${locLabel}')">로그인 / 가입하기</button>
+      </div>`;
+  }
+}
+
+/* 비로그인 로그인 유도 바텀시트 */
+function showAuthSheet(locLabel){
+  document.querySelector('.auth-sheet-bg')?.remove();
+  const bg = document.createElement('div');
+  bg.className = 'auth-sheet-bg';
+  bg.innerHTML = `
+    <div class="auth-sheet">
+      <div class="as-handle"></div>
+      <div class="as-loc-tag">📍 ${locLabel}</div>
+      <div class="as-title">${locLabel} 혜택,<br>로그인하면 바로 볼 수 있어요</div>
+      <div class="as-sub">가입하면 나이·소득까지 맞춰서<br>딱 맞는 혜택만 골라드려요.</div>
+      <div class="as-btns">
+        <button class="btn-kakao" onclick="closeAuthSheet();startSignup('kakao')">
+          <span style="font-size:17px">💬</span> 카카오로 시작하기
+        </button>
+        <button class="btn-naver" onclick="closeAuthSheet();startSignup('naver')">
+          <span style="font-size:14px;font-weight:900;font-family:monospace">N</span> 네이버로 시작하기
+        </button>
+        <button class="btn-email" onclick="closeAuthSheet();startSignup('email')">
+          ✉️ 이메일로 시작하기
+        </button>
+      </div>
+      <button class="as-skip" onclick="closeAuthSheet()">지금은 괜찮아요</button>
+    </div>
+  `;
+  bg.addEventListener('click', e=>{ if(e.target===bg) closeAuthSheet(); });
+  document.getElementById('app').appendChild(bg);
+}
+function closeAuthSheet(){ document.querySelector('.auth-sheet-bg')?.remove(); }
+const CITY_MAP = {
+  서울: {
+    label: '서울특별시',
+    districts: [
+      '강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구',
+      '노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구',
+      '성동구','성북구','송파구','양천구','영등포구','용산구','은평구',
+      '종로구','중구','중랑구'
+    ],
+    portal: 'https://1in.seoul.go.kr/front/user/main.do',
+    portalName: '씽글벙글 서울'
+  },
+  경기: {
+    label: '경기도',
+    districts: [
+      '성남시 분당구','성남시 수정구','성남시 중원구',
+      '수원시 권선구','수원시 영통구','수원시 장안구','수원시 팔달구',
+      '고양시 덕양구','고양시 일산동구','고양시 일산서구',
+      '용인시 기흥구','용인시 수지구','용인시 처인구',
+      '부천시','안산시 단원구','안산시 상록구',
+      '남양주시','화성시','평택시','의정부시','시흥시',
+      '파주시','광명시','김포시','광주시','군포시',
+      '오산시','이천시','안성시','의왕시','하남시',
+      '양주시','구리시','포천시','여주시','동두천시',
+      '가평군','양평군','연천군'
+    ],
+    portal: 'https://www.gg.go.kr/1ingg/main.do',
+    portalName: '경기도 1인가구 포털'
+  },
+  인천: {
+    label: '인천광역시',
+    districts: [
+      '계양구','미추홀구','남동구','동구','부평구',
+      '서구','연수구','중구','강화군','옹진군'
+    ],
+    portal: 'https://www.incheon.go.kr/1in/index',
+    portalName: '인천 1인가구 포털'
+  },
+  부산: {
+    label: '부산광역시',
+    districts: [
+      '강서구','금정구','기장군','남구','동구','동래구',
+      '부산진구','북구','사상구','사하구','서구','수영구',
+      '연제구','영도구','중구','해운대구'
+    ],
+    portal: 'http://www.busan1.or.kr/',
+    portalName: '부산 1인가구 지원센터'
+  }
+};
+
+
+function renderFeed(){
+  const list = document.getElementById('feed-list');
+  if(!list) return;
+  let d = sortMode==='deadline'?[...DB].sort((a,b)=>a.dday-b.dday):[...DB].sort((a,b)=>b.match-a.match);
+  list.innerHTML = d.map(p=>renderCard(p)).join('');
+  const cnt = d.length;
+  ['mc','mb'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=cnt; });
+}
+
+function setSort(el,s){
+  document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  sortMode=s;
+  renderFeed();
+  const cnt = document.getElementById('feed-list')?.children.length || 0;
+  const cntEl = document.getElementById('result-cnt');
+  if(cntEl) cntEl.textContent = ` (${cnt}개)`;
+}
+
+/* ═══════════════════════════════════════
+   공용 유틸 — 드롭다운 시·군·구 채우기
+   (onPsCityChange / onLocCityChange / onEditCityChange / onFeedCityChange 공통)
+═══════════════════════════════════════ */
+function _populateDistricts(cityVal, distSelId, distWrapId, confirmBtnId){
+  const distSel  = document.getElementById(distSelId);
+  const distWrap = document.getElementById(distWrapId);
+  distSel.innerHTML = '<option value="" disabled selected>시·군·구 선택 (선택)</option>';
+  distSel.className = 'lc-select placeholder';
+  if(cityVal && CITY_MAP[cityVal]){
+    CITY_MAP[cityVal].districts.forEach(d=>{
+      const o = document.createElement('option');
+      o.value = d; o.textContent = d;
+      distSel.appendChild(o);
+    });
+    distWrap.style.display = 'block';
+  } else {
+    distWrap.style.display = 'none';
+  }
+  if(confirmBtnId){
+    document.getElementById(confirmBtnId).className = cityVal ? 'btn-primary' : 'btn-primary off';
+  }
+}
+
+/* 닉네임 중복 검증 공용 로직 */
+function _checkNickname(v, currentNick, onChecking, onOk, onErr){
+  const clean = v.trim();
+  if(clean.length < 2){
+    onErr(clean.length > 0 ? '2자 이상 입력해 주세요' : '', false);
+    return;
+  }
+  if(clean.length > 12){ onErr('12자 이내로 입력해 주세요', true); return; }
+  if(!/^[가-힣a-zA-Z0-9]+$/.test(clean)){ onErr('한글, 영문, 숫자만 사용할 수 있어요', true); return; }
+  // 현재 닉네임과 동일하면 즉시 통과
+  if(currentNick && clean === currentNick){ onOk('현재 닉네임이에요', false); return; }
+  onChecking();
+  return clean; // 비동기 검사 대상 값 반환
+}
+
+/* ═══════════════════════════════════════
+   카드 HTML 생성 공용 함수
+═══════════════════════════════════════ */
+function renderCard(p){
+  return `
+    <div class="pc" onclick="openDetail(${p.id})">
+      <div class="pc-head">
+        <div class="pc-badges">${p.bdgs.map(b=>`<span class="bdg ${b.c}">${b.t}</span>`).join('')}</div>
+        <button class="hrt${liked.has(p.id)?' liked':''}" onclick="event.stopPropagation();toggleLike(${p.id},this)">♥</button>
+      </div>
+      <div class="pc-body">
+        <div class="pc-org">${p.org}</div>
+        <div class="pc-title">${p.title}</div>
+        <div class="pc-desc">${p.desc}</div>
+      </div>
+      <div class="pc-foot">
+        <div class="pc-dday ${p.dday<=7?'urg':''}">📅 ${p.dday<=7?`D-${p.dday}`:`~ ${p.deadline}`}</div>
+        <div class="mw"><div class="mt"><div class="mf" style="width:${p.match}%"></div></div><span class="mp">${p.match}%</span></div>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════
+   DETAIL
+═══════════════════════════════════════ */
+function openDetail(id){
+  const p=DB.find(x=>x.id===id);if(!p)return;curId=id;
+  document.getElementById('dt-lbl').textContent=p.title;
+  document.getElementById('dt-hero').innerHTML=`
+    <div class="dt-bdgs">${p.bdgs.map(b=>`<span class="dt-bdg">${b.t}</span>`).join('')}</div>
+    <div class="dt-title">${p.title}</div>
+    <div class="dt-dday">신청 마감 D-${p.dday} · ${p.deadline}</div>
+  `;
+  document.getElementById('dt-body').innerHTML=`
+    <div class="hl"><div class="hl-lbl">핵심 혜택</div><div class="hl-val">${p.benefit}</div></div>
+    <div class="info-grid">
+      <div class="ib"><div class="ib-lbl">신청 기간</div><div class="ib-val">${p.period}</div></div>
+      <div class="ib"><div class="ib-lbl">신청 방법</div><div class="ib-val">${p.method}</div></div>
+      <div class="ib"><div class="ib-lbl">지원 대상</div><div class="ib-val">${p.target}</div></div>
+      <div class="ib"><div class="ib-lbl">매칭률</div><div class="ib-val" style="color:var(--saesak)">${p.match}% ✓</div></div>
+    </div>
+    <div class="ds">
+      <div class="ds-title">✅ 자격 조건 (쉬운 말)</div>
+      ${p.conds.map(c=>`<div class="ci"><span class="cico">${c.i}</span><div><div class="ct">${c.t}</div>${c.e?`<div class="ce">→ ${c.e}</div>`:''}</div></div>`).join('')}
+    </div>
+    <div class="ds">
+      <div class="ds-title">📋 신청 방법</div>
+      ${p.how.map((h,i)=>`<div class="si"><div class="sn">${i+1}</div><div><div class="st">${h.t}</div><div class="sd">${h.d}</div></div></div>`).join('')}
+    </div>
+  `;
+  const btn=document.getElementById('a-like');
+  btn.textContent=liked.has(id)?'❤️':'🤍';
+  btn.className='a-like'+(liked.has(id)?' on':'');
+  goTo('sc-detail');
+}
+
+function toggleDLike(){
+  if(!curId)return;
+  toggleLikeById(curId);
+  const b=document.getElementById('a-like');
+  b.textContent=liked.has(curId)?'❤️':'🤍';
+  b.className='a-like'+(liked.has(curId)?' on':'');
+  renderWish();
+}
+function toggleLike(id,btn){
+  toggleLikeById(id);
+  btn.classList.toggle('liked',liked.has(id));
+  if(liked.has(id)) toast('단단히 챙겨뒀어요! ✅ 마감 3일 전 알림 드릴게요.');
+  renderWish();
+}
+function toggleLikeById(id){
+  if(liked.has(id)){
+    liked.delete(id);
+    // Supabase에서 삭제
+    if(user?.supabase_uid){
+      supa.from('wishes')
+        .delete()
+        .eq('user_id', user.supabase_uid)
+        .eq('policy_id', id)
+        .then(({error})=>{ if(error) console.warn('찜 삭제 실패:', error.message); });
+    }
+  } else {
+    liked.add(id);
+    // Supabase에 저장
+    if(user?.supabase_uid){
+      supa.from('wishes')
+        .upsert({ user_id: user.supabase_uid, policy_id: id, created_at: new Date().toISOString() },
+                 { onConflict: 'user_id,policy_id' })
+        .then(({error})=>{ if(error) console.warn('찜 저장 실패:', error.message); });
+    }
+  }
+}
+
+/* ═══════════════════════════════════════
+   WISHLIST
+═══════════════════════════════════════ */
+function renderWish(){
+  const el=document.getElementById('wish-body');
+  const arr=DB.filter(p=>liked.has(p.id));
+  if(!arr.length){
+    el.innerHTML='<div class="pg-body"><div class="empty"><div class="empty-ico">🤍</div><div class="empty-t">아직 챙겨둔 게 없어요</div><div class="empty-s">마음에 드는 걸 하트로 찜하면<br>마감 전에 알려드릴게요.</div></div></div>';
+    return;
+  }
+  el.innerHTML='<div class="pg-body"><div style="display:flex;flex-direction:column;gap:12px">'+arr.map(p=>renderCard(p)).join('')+'</div></div>';
+}
+
+/* ═══════════════════════════════════════
+   EDIT PROFILE
+═══════════════════════════════════════ */
+let editNickValid = false;
+let editNickTimer = null;
+const incLabels = ['월 100만원 미만','월 100~200만원','월 200~350만원','월 350만원 이상'];
+
+function openEditProfile(){
+  if(!user) return;
+  // 닉네임 세팅
+  const nickInput = document.getElementById('edit-nick');
+  nickInput.value = user.nickname || '';
+  nickInput.className = 'nick-input';
+  document.getElementById('edit-nick-status').textContent = '';
+  editNickValid = true; // 현재 닉네임은 유효
+
+  // 나이 세팅
+  const age = user.age || 28;
+  document.getElementById('edit-age-num').textContent = age;
+  document.getElementById('edit-age-slider').value = age;
+
+  // 지역 세팅
+  const citySel = document.getElementById('edit-sel-city');
+  const distWrap = document.getElementById('edit-dist-wrap');
+  const distSel = document.getElementById('edit-sel-district');
+  const loc = selectedLocation || null;
+  citySel.value = '';
+  citySel.className = 'lc-select placeholder';
+  distSel.innerHTML = '<option value="" disabled selected>시·군·구 선택 (선택)</option>';
+  distSel.className = 'lc-select placeholder';
+  distWrap.style.display = 'none';
+  if(loc && loc.city && CITY_MAP[loc.city]){
+    citySel.value = loc.city;
+    citySel.className = 'lc-select';
+    CITY_MAP[loc.city].districts.forEach(d=>{
+      const o=document.createElement('option'); o.value=d; o.textContent=d; distSel.appendChild(o);
+    });
+    distWrap.style.display = 'block';
+    if(loc.district){ distSel.value=loc.district; distSel.className='lc-select'; }
+  }
+
+  // 소득 세팅
+  for(let i=0;i<4;i++){
+    document.getElementById('ei-'+i).className = 'inc-opt' +
+      (user.income === incLabels[i] ? ' on' : '');
+  }
+
+  // 거주형태 세팅
+  document.querySelectorAll('#sc-edit .hsg-opt').forEach(btn=>{
+    btn.classList.toggle('on', btn.dataset.value === (user.housing||''));
+  });
+
+  goTo('sc-edit');
+}
+
+function onEditNickInput(v){
+  const input  = document.getElementById('edit-nick');
+  const status = document.getElementById('edit-nick-status');
+  editNickValid = false;
+  clearTimeout(editNickTimer);
+  input.className = 'nick-input';
+
+  const clean = _checkNickname(v, user?.nickname,
+    ()=>{ status.textContent='확인 중…'; status.className='nick-status checking'; },
+    (msg)=>{ input.className='nick-input ok'; status.textContent=msg; status.className='nick-status ok'; editNickValid=true; },
+    (msg, showErr)=>{ input.className=showErr?'nick-input err':'nick-input'; status.textContent=msg; status.className='nick-status err'; }
+  );
+  if(!clean) return;
+
+  editNickTimer = setTimeout(()=>{
+    if(takenNicks.includes(clean)){
+      input.className='nick-input err';
+      status.textContent='이미 사용 중인 닉네임이에요 😢';
+      status.className='nick-status err'; editNickValid=false;
+    } else {
+      input.className='nick-input ok';
+      status.textContent= deletedNicks.includes(clean)
+        ? '사용할 수 있는 닉네임이에요 ✓ (이전 사용 닉네임)' : '사용할 수 있는 닉네임이에요 ✓';
+      status.className='nick-status ok'; editNickValid=true;
+    }
+  }, 500);
+}
+
+function onEditCityChange(sel){
+  sel.classList.toggle('placeholder',!sel.value);
+  _populateDistricts(sel.value, 'edit-sel-district', 'edit-dist-wrap', null);
+}
+
+function selectEditInc(el, i){
+  document.querySelectorAll('#sc-edit .inc-opt').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+}
+
+function selectEditHsg(el){
+  document.querySelectorAll('#sc-edit .hsg-opt').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+}
+
+function saveEdit(){
+  if(!editNickValid){ toast('닉네임을 확인해 주세요'); return; }
+  const newNick = document.getElementById('edit-nick').value.trim();
+
+  // 닉네임 변경 시 takenNicks 갱신 + 이전 localStorage 키 정리
+  if(newNick !== user.nickname){
+    // 이전 저장 데이터 삭제 (닉네임 기반 키이므로 반드시 교체 전 지움)
+    removeSavedLocation();
+    const idx = takenNicks.indexOf(user.nickname);
+    if(idx > -1) takenNicks.splice(idx, 1);
+    takenNicks.push(newNick);
+    user.nickname = newNick;
+  }
+
+  // 나이
+  user.age = parseInt(document.getElementById('edit-age-slider').value) || null;
+
+  // 지역
+  const city = document.getElementById('edit-sel-city').value;
+  const district = document.getElementById('edit-sel-district').value || null;
+  if(city && CITY_MAP[city]){
+    selectedLocation = {
+      city, cityLabel: CITY_MAP[city].label,
+      district, districtLabel: district,
+      portal: CITY_MAP[city].portal, portalName: CITY_MAP[city].portalName
+    };
+    saveLocation(selectedLocation);
+  }
+
+  // 소득
+  const incEl = document.querySelector('#sc-edit .inc-opt.on');
+  user.income = incEl ? incEl.querySelector('.inc-name').textContent : null;
+
+  // 거주형태 — data-value 사용
+  const hsgEl = document.querySelector('#sc-edit .hsg-opt.on');
+  user.housing = hsgEl ? hsgEl.dataset.value : null;
+
+  goBack();
+  refreshFeedUI();
+  toast('수정됐어요 ✓');
+}
+function renderMyPage(){
+  const el = document.getElementById('my-body');
+  if(!user){
+    // 비로그인
+    el.innerHTML = `
+      <div class="pg-body">
+        <div class="my-guest">
+          <div class="my-guest-ico">🌱</div>
+          <div class="my-guest-title">로그인하고 단단 시작해요</div>
+          <div class="my-guest-sub">내 나이·지역에 딱 맞는 혜택만<br>쏙쏙 골라드릴게요.</div>
+          <div class="my-guest-btns">
+            <button class="g-login" onclick="openAuth('login')">로그인</button>
+            <button class="g-signup" onclick="openAuth('signup')">가입하기</button>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+  const regionLabel = selectedLocation
+    ? (selectedLocation.districtLabel
+        ? selectedLocation.cityLabel + ' ' + selectedLocation.districtLabel
+        : selectedLocation.cityLabel)
+    : (user.region || null);
+  const condTags = [
+    user.age ? `${user.age}세` : null,
+    regionLabel,
+    user.income || null,
+    user.housing || null,
+  ].filter(Boolean);
+
+  el.innerHTML = `
+    <div class="pg-body">
+      <div class="my-card">
+        <div class="my-av-row">
+          <div class="my-av">
+            <svg width="26" height="28" viewBox="0 0 84 90" fill="none">
+              <rect x="33" y="62" width="18" height="22" rx="9" fill="url(#trunk)"/>
+              <circle cx="42" cy="60" r="16" fill="url(#g-bc)"/>
+              <circle cx="24" cy="55" r="15" fill="url(#g-bl)"/>
+              <circle cx="60" cy="55" r="15" fill="url(#g-br)"/>
+              <circle cx="26" cy="36" r="17" fill="url(#g-tl)"/>
+              <circle cx="58" cy="34" r="17" fill="url(#g-tr)"/>
+              <circle cx="42" cy="28" r="20" fill="url(#g-top)"/>
+            </svg>
+          </div>
+          <div>
+            <div class="my-nickname">${user.nickname}</div>
+            <div class="my-mail">${user.provider==='email'?'email@example.com':user.provider+' 로그인'}</div>
+          </div>
+        </div>
+        <div class="my-cond-lbl">내 정보</div>
+        <div class="my-tags">
+          ${condTags.length ? condTags.map(t=>`<span class="my-tag">${t}</span>`).join('') : '<span class="my-tag empty">아직 입력된 정보가 없어요</span>'}
+        </div>
+        <button class="my-edit" onclick="openEditProfile()">내 정보 수정하기</button>
+      </div>
+      <div class="my-card">
+        <div class="mi" onclick="goTo('sc-wish')"><div class="mi-l"><span class="mi-ico">🤍</span> 단단히 챙겨둔 것들</div><span class="mi-arr">›</span></div>
+        <div class="mi" onclick="toast('알림 설정 (준비 중)')"><div class="mi-l"><span class="mi-ico">🔔</span> 알림 설정</div><span class="mi-arr">›</span></div>
+        <div class="mi" onclick="toast('개인정보 처리방침')"><div class="mi-l"><span class="mi-ico">🔒</span> 개인정보 처리방침</div><span class="mi-arr">›</span></div>
+        <div class="mi" onclick="logout()"><div class="mi-l"><span class="mi-ico">🚪</span> 로그아웃</div><span class="mi-arr">›</span></div>
+      </div>
+    </div>`;
+}
+
+async function logout(){
+  removeSavedLocation();
+  try { await supa.auth.signOut(); } catch(e) { console.warn('로그아웃 실패:', e.message); }
+  user = null;
+  hist = [];
+  liked = new Set();
+  refreshFeedUI();
+  goTo('sc-feed');
+  toast('로그아웃 됐어요. 또 봐요! 👋');
+}
+
+/* ═══════════════════════════════════════
+   SHARE / TOAST
+═══════════════════════════════════════ */
+function showShare(){
+  const bg=document.createElement('div');
+  bg.className='modal-bg';
+  bg.innerHTML=`<div class="modal-sh"><div class="m-handle"></div><div class="m-title">나만 알기엔 너무 좋은 정보죠.</div><div class="m-copy">친구에게도 <em>단단</em> 공유하기 →</div><div class="share-btns"><button class="share-btn" onclick="closeShare();toast('카카오톡으로 공유했어요 📤')"><span class="sico">💬</span>카카오톡</button><button class="share-btn" onclick="closeShare();toast('링크가 복사되었습니다 ✓')"><span class="sico">🔗</span>링크 복사</button></div></div>`;
+  bg.addEventListener('click',e=>{if(e.target===bg)closeShare();});
+  document.getElementById('app').appendChild(bg);
+}
+function closeShare(){ document.querySelector('.modal-bg')?.remove(); }
+
+function toast(msg){
+  document.querySelectorAll('.toast').forEach(t=>t.remove());
+  const t=document.createElement('div');
+  t.className='toast';t.textContent=msg;
+  document.getElementById('app').appendChild(t);
+  setTimeout(()=>t.remove(),2400);
+}
+
+/* ═══════════════════════════════════════
+   INIT
+═══════════════════════════════════════ */
+(async () => {
+  // 기존 Supabase 세션 복원 (새로고침해도 로그인 유지)
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    if(session?.user){
+      // 프로필 불러오기
+      const { data: profile } = await supa
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+      if(profile){
+        user = {
+          nickname:      profile.nickname,
+          provider:      profile.provider || 'email',
+          supabase_uid:  session.user.id,
+          age:           profile.age,
+          income:        profile.income,
+          housing:       profile.housing,
+        };
+        // 저장된 지역 복원
+        if(profile.region_city){
+          const cityData = CITY_MAP[profile.region_city];
+          if(cityData){
+            selectedLocation = {
+              city:          profile.region_city,
+              cityLabel:     cityData.label,
+              district:      profile.region_district || null,
+              districtLabel: profile.region_district || null,
+              portal:        cityData.portal,
+              portalName:    cityData.portalName,
+            };
+          }
+        }
+        // 찜 목록 복원
+        const { data: wishes } = await supa
+          .from('wishes')
+          .select('policy_id')
+          .eq('user_id', session.user.id);
+        if(wishes) wishes.forEach(w => liked.add(w.policy_id));
+      }
+    }
+  } catch(e) {
+    console.warn('세션 복원 실패:', e.message);
+  }
+
+  refreshFeedUI();
+
+  // 지역이 이미 설정돼 있으면 데이터 즉시 로드
+  if(user && selectedLocation){
+    loadPolicies(selectedLocation.city, selectedLocation.district);
+  }
+})();
+
+// sc-feed에는 ad-slider가 없으므로 sc-location 최초 진입 시에만 초기화됨
+// (goTo 훅에서 initAdSlider(slider, dots) 호출)
+
+// DANDAN 양끝 정렬
+document.fonts.ready.then(()=>{
+  const en=document.getElementById('spl-en');
+  const ko=document.querySelector('.spl-brand');
+  if(!en||!ko)return;
+  const koW=ko.getBoundingClientRect().width;
+  const fs=parseFloat(getComputedStyle(en).fontSize);
+  en.style.letterSpacing='0';
+  const natW=en.getBoundingClientRect().width;
+  const gap=(koW-natW)/en.textContent.trim().length;
+  en.style.letterSpacing=(gap/fs)+'em';
+  en.style.marginRight=(-gap)+'px';
+});
+</script>
+</body>
+</html>
