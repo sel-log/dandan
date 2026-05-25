@@ -1,16 +1,13 @@
 /**
  * 단단 — 복지로 지자체복지서비스 API 프록시
- * GET /api/policies?city=서울&district=마포구&life=004&theme=040
- *
+ * GET /api/policies?city=서울&district=마포구
  * Vercel 환경변수: BOKJIRO_API_KEY
  */
 
-// 시도코드 매핑 (복지로 API 기준)
 const SIDO_CODE = {
-  '서울': '11', '경기': '41', '인천': '28', '부산': '26',
+  '서울':'11','경기':'41','인천':'28','부산':'26',
 };
 
-// 시군구코드 매핑 (주요 구만 포함 — 필요 시 확장)
 const SIGUNGU_CODE = {
   // 서울
   '강남구':'11680','강동구':'11740','강북구':'11305','강서구':'11500',
@@ -34,7 +31,6 @@ const SIGUNGU_CODE = {
 };
 
 export default async function handler(req, res) {
-  // CORS 허용
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if(req.method === 'OPTIONS'){ res.status(200).end(); return; }
@@ -42,109 +38,109 @@ export default async function handler(req, res) {
   const { city, district, life, theme, page = '1', size = '20' } = req.query;
   const apiKey = process.env.BOKJIRO_API_KEY;
 
-  if(!apiKey){
-    return res.status(500).json({ error: 'API 키가 설정되지 않았습니다.' });
-  }
-  if(!city){
-    return res.status(400).json({ error: 'city 파라미터가 필요합니다.' });
-  }
+  if(!apiKey) return res.status(500).json({ error: 'API 키가 설정되지 않았습니다.' });
+  if(!city)   return res.status(400).json({ error: 'city 파라미터가 필요합니다.' });
 
   const sidoCd    = SIDO_CODE[city];
   const sigunguCd = district ? SIGUNGU_CODE[district] : undefined;
+  if(!sidoCd) return res.status(400).json({ error: `지원하지 않는 지역: ${city}` });
 
-  if(!sidoCd){
-    return res.status(400).json({ error: `지원하지 않는 지역입니다: ${city}` });
-  }
-
-  // 복지로 API 파라미터 조립
   const params = new URLSearchParams({
     serviceKey: apiKey,
-    callTp:     'L',          // 목록 조회
-    pageNo:     page,
-    numOfRows:  size,
-    siDoCd:     sidoCd,
+    callTp:    'L',
+    pageNo:    page,
+    numOfRows: size,
+    siDoCd:    sidoCd,
   });
-
-  if(sigunguCd)         params.append('siGunGuCd',       sigunguCd);
-  if(life)              params.append('lifeArray',        life);   // 생애주기 코드
-  if(theme)             params.append('intrsThemaArray',  theme);  // 관심주제 코드
+  if(sigunguCd) params.append('siGunGuCd',      sigunguCd);
+  if(life)      params.append('lifeArray',       life);
+  if(theme)     params.append('intrsThemaArray', theme);
 
   const url = `http://apis.data.go.kr/B554287/LocalGovernmentWelfareInformations/LcgvWelfarelist?${params}`;
 
   try {
-    const upstream = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
+    // ── XML 응답 받기 ──
+    const upstream = await fetch(url);
+    if(!upstream.ok) throw new Error(`복지로 HTTP ${upstream.status}`);
+    const xml = await upstream.text();
+
+    // ── XML → JS 객체 파싱 (정규식 기반, 외부 라이브러리 없이) ──
+    const total = parseInt(getXmlVal(xml, 'totalCount') || '0');
+
+    // <servList>...</servList> 블록 전체 추출
+    const blocks = [];
+    const re = /<servList>([\s\S]*?)<\/servList>/g;
+    let m;
+    while((m = re.exec(xml)) !== null) blocks.push(m[1]);
+
+    const policies = blocks.map(block => {
+      const get = tag => getXmlVal(block, tag) || '';
+      return {
+        id:              get('servId'),
+        title:           get('servNm'),
+        org:             get('bizChrDeptNm') || get('ctpvNm'),
+        org_type:        'local_gov',
+        source_portal:   get('servDtlLink'),
+        region_city:     city,
+        region_district: district || get('sggNm') || null,
+        category:        mapThemeNm(get('intrsThemaNmArray')),
+        benefit_summary: cleanText(get('servDgst')) || get('servNm'),
+        benefit_detail:  cleanText(get('servDgst')),
+        conditions_plain: parseConditions(get('alwServCn') || get('servDgst')),
+        apply_method:    get('aplyMtdNm') || '-',
+        apply_url:       get('servDtlLink') || null,
+        apply_end:       get('rcvPeriodCn') || null,
+        is_recurring:    !get('rcvPeriodCn'),
+        match_score:     85,
+        target_summary:  get('lifeNmArray') || get('tgterIndvdlNmArray') || '',
+        tags:            [],
+      };
     });
 
-    if(!upstream.ok){
-      throw new Error(`복지로 API 오류: ${upstream.status}`);
-    }
-
-    const raw = await upstream.json();
-
-    // 복지로 응답 → 단단 포맷 변환
-    const items = raw?.body?.items?.item ?? [];
-    const total = raw?.body?.totalCount ?? 0;
-
-    const policies = (Array.isArray(items) ? items : [items]).map(item => ({
-      id:              item.servId,
-      title:           item.servNm,
-      org:             item.intrsThemaArray || item.jurOrgNm || '',
-      org_type:        'local_gov',
-      source_portal:   item.servDtlLink || null,
-      region_city:     city,
-      region_district: district || null,
-      category:        mapTheme(item.intrsThemaArray),
-      benefit_summary: item.servSumry || item.servNm,
-      benefit_detail:  item.servDtlCn || '',
-      conditions_plain: parseConditions(item.alwServCn || ''),
-      apply_method:    item.aplyMtdCd || 'both',
-      apply_url:       item.servDtlLink || null,
-      apply_end:       item.rcvPeriodCn || null,
-      is_recurring:    !item.rcvPeriodCn,
-      match_score:     85,
-      target_summary:  item.tgterIndvdlArray || '',
-      tags:            [],
-    }));
-
     return res.status(200).json({
-      success: true,
-      total,
-      page:    parseInt(page),
-      size:    parseInt(size),
-      city,
-      district: district || null,
+      success: true, total,
+      page: parseInt(page), size: parseInt(size),
+      city, district: district || null,
       policies,
     });
 
   } catch(e) {
-    console.error('복지로 API 호출 실패:', e.message);
-    return res.status(502).json({
-      error:   '복지로 API 호출에 실패했습니다.',
-      message: e.message,
-    });
+    console.error('복지로 API 실패:', e.message);
+    return res.status(502).json({ error: '복지로 API 호출 실패', message: e.message });
   }
 }
 
 /* ── 헬퍼 ── */
 
-// 관심주제 코드 → 단단 카테고리
-function mapTheme(code){
-  const map = {
-    '010':'건강','020':'건강','030':'생활·문화',
-    '040':'주거','050':'취업','060':'생활·문화',
-    '070':'생활·문화','130':'금융','140':'금융',
-  };
-  const first = String(code || '').slice(0,3);
-  return map[first] || '생활·문화';
+// XML 태그값 추출
+function getXmlVal(xml, tag) {
+  const m = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`).exec(xml);
+  return m ? m[1].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim() : null;
 }
 
-// 자격조건 텍스트 → 배열로 분리
-function parseConditions(text){
+// 텍스트 정리 (특수문자·이모지 제거, 공백 정리)
+function cleanText(text) {
+  if(!text) return '';
+  return text.replace(/❍|◆|●|▶|•/g, '').replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+
+// 관심주제명 → 단단 카테고리
+function mapThemeNm(nm) {
+  if(!nm) return '생활·문화';
+  if(nm.includes('주거'))            return '주거';
+  if(nm.includes('일자리'))          return '취업';
+  if(nm.includes('건강'))            return '건강';
+  if(nm.includes('금융') || nm.includes('서민금융') || nm.includes('법률')) return '금융';
+  if(nm.includes('교육') || nm.includes('보육'))  return '교육';
+  return '생활·문화';
+}
+
+// 자격조건 텍스트 → 배열
+function parseConditions(text) {
   if(!text) return [];
   return text
-    .split(/[\n•·\-○◦]+/)
+    .split(/[\n❍◆●▶•\-○◦]+/)
     .map(s => s.trim())
-    .filter(s => s.length > 2)
-    .slice(0, 5);
+    .filter(s => s.length > 4)
+    .slice(0, 4);
 }
