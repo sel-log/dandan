@@ -106,7 +106,14 @@ export default async function handler(req, res) {
   }
 
   if (results.length) {
-    try { await upsertPolicies(results); }
+    // 중복 id 제거 (같은 배치 내)
+    const seen = new Set();
+    const deduped = results.filter(r => {
+      if(seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+    try { await upsertPolicies(deduped); }
     catch (e) { return res.status(500).json({ error: e.message }); }
   }
 

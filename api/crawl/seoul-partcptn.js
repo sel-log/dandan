@@ -54,33 +54,28 @@ function parseSeoulPartcptn(html) {
 
   for (const row of rows) {
     try {
-      // 제목 & 링크: td:nth-child(3) > a
-      const linkMatch = row.match(/href="(\/front\/partcptn\/partcptnView\.do\?partcptn_id=[^"]+)"/);
-      if (!linkMatch) continue;
+      // 제목: td.al > a 또는 td:nth-child(3) > a
+      const titleLinkMatch = row.match(/<a[^>]+href="(\/front\/partcptn\/partcptnView\.do[^"]*)"[^>]*>([^<]+)<\/a>/);
+      if (!titleLinkMatch) continue;
 
-      const href = linkMatch[1];
+      const href = titleLinkMatch[1];
       const apply_url = `${BASE}${href}`;
       const idMatch = href.match(/partcptn_id=([^&]+)/);
       const id = `seoul_partcptn_${idMatch?.[1] || Date.now()}`;
-
-      // td 전체 텍스트 추출
-      const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
-        .map(m => m[1].replace(/<[^>]+>/g, '').trim());
-
-      if (tds.length < 4) continue;
-
-      const district = tds[1] || null;     // 지역 (구)
-      const titleEl  = row.match(/title="([^"]+)"/);
-      const title    = titleEl?.[1]?.replace(/\s*상세 페이지로 이동.*$/, '').trim()
-                    || tds[2]?.trim() || '';
+      const title = titleLinkMatch[2].trim();
       if (!title) continue;
 
-      // 접수기간 파싱 (tds[3]: "접수기간 2026-05-22 ~ 2026-06-13")
+      // td 텍스트 추출 (지역, 접수기간)
+      const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
+        .map(m => m[1].replace(/<[^>]+>/g, '').trim());
+      const district = tds[1] || null;
+
+      // 접수기간
       const periodText = tds[3] || '';
       const endMatch = periodText.match(/~\s*(\d{4}-\d{2}-\d{2})/);
       const apply_end = endMatch ? endMatch[1] : null;
 
-      // 마감 항목 제외 (접수 종료된 것)
+      // 마감 항목 제외
       if (apply_end && new Date(apply_end) < new Date()) continue;
 
       items.push({

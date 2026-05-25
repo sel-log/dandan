@@ -1047,12 +1047,22 @@ async function loadPolicies(city, district){
   showFeedLoading(true);
   try {
     /* ── 1순위: Supabase (크롤링된 1인가구 맞춤 데이터) ── */
+    // district가 '성남시 분당구' 형태일 때 '성남시'도 함께 검색
+    const sigunNm = district ? district.split(' ')[0] : null; // '성남시 분당구' → '성남시'
+
     let q = supa
       .from('policies')
       .select('*')
       .eq('region_city', city)
       .order('match_score', { ascending: false });
-    if(district) q = q.eq('region_district', district);
+
+    if(district && sigunNm && sigunNm !== district){
+      // '성남시 분당구' 같은 경우: 성남시 분당구 OR 성남시 OR null(광역) 모두 포함
+      q = q.or(`region_district.eq.${district},region_district.eq.${sigunNm},region_district.is.null`);
+    } else if(district){
+      // '마포구' 같은 구만 있는 경우: 마포구 OR null(광역) 포함
+      q = q.or(`region_district.eq.${district},region_district.is.null`);
+    }
 
     const { data: supaData, error } = await q;
 
