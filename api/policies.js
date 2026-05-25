@@ -1,6 +1,6 @@
 /**
  * 단단 — 복지로 지자체복지서비스 API 프록시
- * GET /api/policies?city=서울&district=마포구
+ * GET /api/policies?city=서울&district=성남시 분당구
  * Vercel 환경변수: BOKJIRO_API_KEY
  */
 
@@ -12,6 +12,7 @@ const SIDO_NM = {
   '서울':'서울특별시','경기':'경기도','인천':'인천광역시','부산':'부산광역시',
 };
 
+// 시군구 코드 (복지로 API용)
 const SIGUNGU_CODE = {
   '강남구':'11680','강동구':'11740','강북구':'11305','강서구':'11500',
   '관악구':'11620','광진구':'11215','구로구':'11530','금천구':'11545',
@@ -28,8 +29,17 @@ const SIGUNGU_CODE = {
   '연제구':'26470','영도구':'26200','해운대구':'26350',
 };
 
-// 1인가구가 절대 해당 안 되는 항목만 제외
-// (결혼/출산/육아 전제 혜택, 시설 종사자 수당 등)
+// district 값에서 시군 이름 추출 (응답 sggNm 매칭용)
+// '성남시 분당구' → '성남시', '마포구' → '마포구', '수원시 팔달구' → '수원시'
+function extractSigunNm(district) {
+  if(!district) return null;
+  const parts = district.trim().split(/\s+/);
+  // '성남시 분당구' 처럼 시+구 형태면 앞의 '시'를 반환
+  if(parts.length >= 2 && parts[0].endsWith('시')) return parts[0];
+  // '마포구' 처럼 구만 있으면 그대로
+  return parts[0];
+}
+
 const EXCLUDE_KEYWORDS = [
   '신혼부부','육아휴직','출산 장려','입양 장려','다자녀','임신',
   '어린이집 운영','보육교사','노숙인시설 종사자','화장장려',
@@ -51,8 +61,7 @@ export default async function handler(req, res) {
   const sigunguCd = district ? SIGUNGU_CODE[district] : undefined;
   if(!sidoCd) return res.status(400).json({ error: `지원하지 않는 지역: ${city}` });
 
-  // 넉넉히 가져와서 필터 후 반환
-  const fetchSize = parseInt(size) * 4;
+  const fetchSize = parseInt(size) * 5;
 
   const params = new URLSearchParams({
     serviceKey: apiKey,
@@ -73,13 +82,14 @@ export default async function handler(req, res) {
     const xml = await upstream.text();
 
     const total = parseInt(getXmlVal(xml, 'totalCount') || '0');
-
     const blocks = [];
     const re = /<servList>([\s\S]*?)<\/servList>/g;
     let m;
     while((m = re.exec(xml)) !== null) blocks.push(m[1]);
 
-    const sidoNm = SIDO_NM[city];
+    const sidoNm  = SIDO_NM[city];
+    // district 있을 때: 시군 이름 추출 ('성남시 분당구' → '성남시')
+    const sigunNm = district ? extractSigunNm(district) : null;
 
     const all = blocks.map(block => {
       const get = tag => getXmlVal(block, tag) || '';
@@ -90,8 +100,9 @@ export default async function handler(req, res) {
         org_type:        'local_gov',
         source_portal:   get('servDtlLink'),
         region_city:     city,
-        region_district: district || (get('sggNm') || null),
+        region_district: get('sggNm') || null,
         ctpvNm:          get('ctpvNm'),
+        sggNm:           get('sggNm'),
         category:        mapThemeNm(get('intrsThemaNmArray')),
         benefit_summary: cleanText(get('servDgst')) || get('servNm'),
         benefit_detail:  cleanText(get('servDgst')),
@@ -106,23 +117,57 @@ export default async function handler(req, res) {
       };
     });
 
-    // 1. 해당 시도 데이터만 (복지로 API 지역 필터 불완전 보완)
-    const regionFiltered = all.filter(p => {
+    // ── 1단계: 시도 필터 ──
+    let filtered = all.filter(p => {
       if(!p.ctpvNm) return true;
       return p.ctpvNm.includes(sidoNm) || p.ctpvNm.includes(city);
     });
 
-    // 2. 1인가구 해당 없는 항목만 제외 (최소한으로)
-    const filtered = regionFiltered.filter(p => {
+    // ── 2단계: 시군구 필터 (district 선택 시) ──
+    // 복지로 API는 sggNm이 자주 비어있어서 org(기관명)에서 시군 추출
+    // 통과 조건:
+    //   A) sggNm도 없고 org에도 다른 시군 언급 없음 → 경기도 광역 혜택 → 통과
+    //   B) sggNm 또는 org가 선택한 시군 포함 → 해당 시군 혜택 → 통과
+    //   C) 다른 시군 데이터 → 제외
+    if(sigunNm) {
+      // 경기도 내 다른 시군 목록 (필터 제외용)
+      const OTHER_SIGUN = [
+        '수원시','고양시','용인시','부천시','안산시','남양주시','화성시','평택시',
+        '의정부시','시흥시','파주시','광명시','김포시','광주시','군포시','오산시',
+        '이천시','안성시','의왕시','하남시','양주시','구리시','포천시','여주시',
+        '동두천시','안양시','가평군','양평군','연천군',
+        // 인천 구
+        '계양구','미추홀구','남동구','부평구','연수구',
+        // 부산 구
+        '해운대구','부산진구','동래구','사상구','사하구','수영구',
+      ].filter(s => !sigunNm.includes(s) && !s.includes(sigunNm));
+
+      filtered = filtered.filter(p => {
+        const orgText = p.org || '';
+        const sgg     = p.sggNm || '';
+
+        // sggNm 또는 org가 선택 시군 포함 → 통과 (B)
+        if(sgg.includes(sigunNm) || orgText.includes(sigunNm)) return true;
+
+        // 다른 시군이 org에 명시돼 있으면 제외 (C)
+        if(OTHER_SIGUN.some(s => orgText.includes(s) || sgg.includes(s))) return false;
+
+        // 위 어디에도 해당 없음 → 광역 혜택으로 간주 통과 (A)
+        return true;
+      });
+    }
+
+    // ── 3단계: 제외 키워드 필터 ──
+    filtered = filtered.filter(p => {
       const text = p.title + ' ' + p.benefit_summary;
       return !EXCLUDE_KEYWORDS.some(kw => text.includes(kw));
     });
 
-    // 3. match_score 높은 순 정렬
+    // ── 4단계: match_score 내림차순 정렬 ──
     filtered.sort((a, b) => b.match_score - a.match_score);
 
-    // ctpvNm 임시 필드 제거 후 반환
-    const policies = filtered.slice(0, parseInt(size)).map(({ ctpvNm, ...rest }) => rest);
+    // 임시 필드 제거
+    const policies = filtered.slice(0, parseInt(size)).map(({ ctpvNm, sggNm, ...rest }) => rest);
 
     return res.status(200).json({
       success: true,
@@ -140,22 +185,15 @@ export default async function handler(req, res) {
   }
 }
 
-// 1인가구 관련성 점수 계산
 function calcMatchScore(title, desc, lifeNm) {
   let score = 75;
   const text = (title + ' ' + desc + ' ' + lifeNm).toLowerCase();
-
-  // 1인가구 직접 언급 → 최고점
   if(text.includes('1인가구') || text.includes('1인 가구')) score += 20;
-  // 청년 관련
   if(text.includes('청년'))    score += 10;
-  // 주거/취업/건강 주요 카테고리
   if(text.includes('주거') || text.includes('월세') || text.includes('전세')) score += 8;
   if(text.includes('취업') || text.includes('일자리') || text.includes('창업')) score += 8;
   if(text.includes('건강') || text.includes('의료') || text.includes('검진')) score += 5;
-  // 저소득/복지 기본
   if(text.includes('저소득') || text.includes('기초') || text.includes('차상위')) score += 5;
-
   return Math.min(score, 99);
 }
 
@@ -171,11 +209,11 @@ function cleanText(text) {
 
 function mapThemeNm(nm) {
   if(!nm) return '생활·문화';
-  if(nm.includes('주거'))                                          return '주거';
-  if(nm.includes('일자리'))                                        return '취업';
-  if(nm.includes('건강'))                                          return '건강';
+  if(nm.includes('주거'))                                              return '주거';
+  if(nm.includes('일자리'))                                            return '취업';
+  if(nm.includes('건강'))                                              return '건강';
   if(nm.includes('금융')||nm.includes('서민금융')||nm.includes('법률')) return '금융';
-  if(nm.includes('교육')||nm.includes('보육'))                     return '교육';
+  if(nm.includes('교육')||nm.includes('보육'))                         return '교육';
   return '생활·문화';
 }
 
