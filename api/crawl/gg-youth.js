@@ -86,9 +86,13 @@ function parseGyeonggiYouth(html, defaultCat) {
     const catMatch = li.match(/class="[^"]*category[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
     const cat = catMatch?.[1]?.replace(/<[^>]+>/g,'').trim() || defaultCat || '';
 
-    // 지역
-    const regionMatch = li.match(/class="[^"]*(?:city|badge)[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
+    // 지역 — span.badge.city 만 추출 (상태 배지 제외)
+    const regionMatch = li.match(/class="[^"]*badge[^"]*city[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
+                     || li.match(/class="city[^"]*"[^>]*>([\s\S]*?)<\/span>/i);
     const region = regionMatch?.[1]?.replace(/<[^>]+>/g,'').trim() || null;
+    // 상태값이 들어온 경우 제외
+    const INVALID_DISTRICTS = ['마감','진행','예정','모집중','진행중','신청중','종료'];
+    if(region && INVALID_DISTRICTS.includes(region)) continue;
 
     // 날짜 (모집기간)
     const dateMatch = li.match(/(\d{4}\.\d{2}\.\d{2})\s*~\s*(\d{4}\.\d{2}\.\d{2})/);
