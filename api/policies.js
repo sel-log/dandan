@@ -41,9 +41,21 @@ function extractSigunNm(district) {
 }
 
 const EXCLUDE_KEYWORDS = [
-  '신혼부부','육아휴직','출산 장려','입양 장려','다자녀','임신',
-  '어린이집 운영','보육교사','노숙인시설 종사자','화장장려',
-  '무연고 사망','추모의집',
+  // 결혼·임신·출산·육아 관련
+  '신혼부부','임신','출산','산모','육아휴직','육아기','태아','분만',
+  '산후','모유','임산부',
+  // 가족 단위 (2인 이상 전제)
+  '한부모가족','한부모 가족','조손가족','다문화가족','다자녀',
+  '가족센터','입양','위탁아동',
+  // 미성년자 전용
+  '어린이집','보육교사','보육교직원','초등학생','청소년','아동',
+  '유아','영유아','방과후','어린이 급식','어린이·청소년','학교급식',
+  '입학축하','수학여행','돌봄교실',
+  // 시설 종사자 수당 (개인 수혜 아님)
+  '시설 종사자','복지관 종사자','웰빙보조비','종사자 처우',
+  // 완전히 무관한 항목
+  '화장장려','무연고 사망','추모의집','노숙인 재활시설 기능보강',
+  '이주여성상담','일본군',
 ];
 
 export default async function handler(req, res) {
@@ -61,7 +73,7 @@ export default async function handler(req, res) {
   const sigunguCd = district ? SIGUNGU_CODE[district] : undefined;
   if(!sidoCd) return res.status(400).json({ error: `지원하지 않는 지역: ${city}` });
 
-  const fetchSize = parseInt(size) * 5;
+  const fetchSize = parseInt(size) * 8;
 
   const params = new URLSearchParams({
     serviceKey: apiKey,
