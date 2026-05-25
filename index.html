@@ -1897,7 +1897,6 @@ function renderCard(p){
       </div>
       <div class="pc-foot">
         <div class="pc-dday ${(p.dday||999)<=7?'urg':''}">📅 ${(p.dday||999)<=7?`D-${p.dday}`:`~ ${p.deadline||'상시'}`}</div>
-        <div class="mw"><div class="mt"><div class="mf" style="width:${p.match||75}%"></div></div><span class="mp">${p.match||75}%</span></div>
       </div>
     </div>`;
 }
@@ -1906,9 +1905,8 @@ function renderCard(p){
    DETAIL
 ═══════════════════════════════════════ */
 function openDetail(id){
-  // 숫자·문자열 id 모두 처리
   const p = DB.find(x=>String(x.id)===String(id));
-  if(!p) return;
+  if(!p){ console.warn('openDetail: id not found', id, DB.map(x=>x.id)); return; }
   curId = id;
 
   document.getElementById('dt-lbl').textContent = p.title||'';

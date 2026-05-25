@@ -149,11 +149,17 @@ export default async function handler(req, res) {
         '오산시','이천시','안성시','의왕시','하남시','양주시','구리시','포천시',
         '여주시','동두천시','안양시','가평군','양평군','연천군',
       ];
+      const ALL_SEOUL = [
+        '강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구',
+        '노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구',
+        '성동구','성북구','송파구','양천구','영등포구','용산구','은평구',
+        '종로구','중구','중랑구',
+      ];
       const ALL_INCHEON = ['계양구','미추홀구','남동구','부평구','연수구','서구','동구','중구'];
       const ALL_BUSAN   = ['해운대구','부산진구','동래구','사상구','사하구','수영구',
                            '금정구','남구','동구','영도구','연제구','강서구','북구'];
-      const OTHER_SIGUN = [...ALL_GYEONGGI,...ALL_INCHEON,...ALL_BUSAN]
-        .filter(s => !s.includes(sigunNm) && !sigunNm.includes(s));
+      const OTHER_SIGUN = [...ALL_GYEONGGI,...ALL_SEOUL,...ALL_INCHEON,...ALL_BUSAN]
+        .filter(s => s !== sigunNm && !s.includes(sigunNm) && !sigunNm.includes(s));
 
       filtered = filtered.filter(p => {
         const orgText = p.org || '';
