@@ -11,12 +11,17 @@
 // 함수 최대 실행 시간 (풀 크롤 ~80s) — Pro 최대 300s, Hobby는 60s로 자동 캡
 export const maxDuration = 300;
 
-// 동적 import: 한 크롤러 모듈이 깨져도 전체 함수가 죽지 않고 해당 포털만 에러 처리
+// 정적 import: Vercel이 번들에 파일을 포함하도록 (동적 import는 추적 안 됨)
+import seoulPartcptnHandler from './seoul-partcptn.js';
+import gg1inHandler         from './gg-1in.js';
+import incheonHandler       from './incheon.js';
+import busanHandler         from './busan.js';
+
 const CRAWLERS = [
-  { name: '서울시 씽글벙글 참여프로그램', path: './seoul-partcptn.js' },
-  { name: '경기도 1인가구 참여프로그램',  path: './gg-1in.js' },
-  { name: '인천 1인가구 포털',           path: './incheon.js' },
-  { name: '부산 1인가구 지원센터',        path: './busan.js' },
+  { name: '서울시 씽글벙글 참여프로그램', handler: seoulPartcptnHandler },
+  { name: '경기도 1인가구 참여프로그램',  handler: gg1inHandler },
+  { name: '인천 1인가구 포털',           handler: incheonHandler },
+  { name: '부산 1인가구 지원센터',        handler: busanHandler },
 ];
 
 export default async function handler(req, res) {
@@ -29,10 +34,8 @@ export default async function handler(req, res) {
   const results = [];
   const startTime = Date.now();
 
-  for (const { name, path } of CRAWLERS) {
+  for (const { name, handler: crawl } of CRAWLERS) {
     try {
-      const mod = await import(path);          // 모듈 로드 실패도 여기서 잡힘
-      const crawl = mod.default;
       const mockReq = {
         method: 'GET',
         query: req.query,

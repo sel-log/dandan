@@ -71,6 +71,15 @@ export async function fetchText(url, opts = {}) {
 /** Supabase에 policies 배열 upsert */
 export async function upsertPolicies(policies) {
   if (!policies.length) return { count: 0 };
+  // image_url 컬럼 의존 제거: 이미지를 benefit_detail의 [[IMG:url]] 마커로 옮기고
+  // payload에서 image_url 키를 삭제 (앱은 마커를 읽어 포스터를 표시함)
+  const payload = policies.map((p) => {
+    const { image_url, ...rest } = p;
+    if (image_url && !/\[\[IMG:/.test(rest.benefit_detail || '')) {
+      rest.benefit_detail = `[[IMG:${image_url}]] ${rest.benefit_detail || ''}`.trim();
+    }
+    return rest;
+  });
   const res = await fetch(`${SUPABASE_URL}/rest/v1/policies`, {
     method: 'POST',
     headers: {
@@ -79,7 +88,7 @@ export async function upsertPolicies(policies) {
       'apikey': SUPABASE_KEY,
       'Prefer': 'resolution=merge-duplicates',
     },
-    body: JSON.stringify(policies),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const err = await res.text();
