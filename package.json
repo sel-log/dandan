@@ -1,0 +1,13 @@
+{
+  "name": "dandan",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "단단 - 1인가구 복지·정책 큐레이션",
+  "scripts": {
+    "crawl": "node scripts/run-crawl.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

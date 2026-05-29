@@ -1,0 +1,32 @@
+name: 단단 일배치 크롤
+
+# 매일 한국시간 새벽 3시(=UTC 18:00) 자동 실행 + 수동 실행 버튼
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch: {}
+
+# 동시에 두 번 돌지 않도록 (수동+스케줄 겹침 방지)
+concurrency:
+  group: dandan-crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 레포 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node 설치
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 크롤 실행
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: node scripts/run-crawl.mjs
