@@ -1348,37 +1348,50 @@ function parseFields(text){
   flush();
   return raw;
 }
-// 불릿(✅·▶·●·■ 등)으로 항목이 나열된 본문 파서 — 경기 gg1in("✅대상 : … ✅일시 : …") 형식
-const BULLET_SPLIT = /[✅✔☑▶▷◆◇●○■□]+\s*/;
+// 구조화 본문 파서 — "라벨 : 값"을 불릿(✅·●·🚩·📍 등)/번호목록 무관하게 스캔. 경기 gg1in 다양한 형식 대응
 function mapBulletLabel(L){
   const s = L.replace(/\s+/g,'');
-  if(/문의|연락처|전화|콜센터/.test(s)) return '문의';
+  if(/문의|연락처|콜센터/.test(s)) return '문의';
   if(/신청방법|접수방법|참여방법|신청방식/.test(s)) return '신청 방법';
-  if(/대상연령|연령/.test(s)) return '대상 연령';
+  if(/대상연령/.test(s)) return '대상 연령';
   if(/모집인원|참여인원|정원|인원/.test(s)) return '모집 인원';
-  if(/참가비|수강료|이용료|참가비용|비용/.test(s)) return '참가비';
+  if(/참가비|수강료|이용료|참가비용/.test(s)) return '참가비';
   if(/회차|회기|횟수/.test(s)) return '회차';
   if(/장소|위치|진행장소/.test(s)) return '장소';
-  if(/일시|일정/.test(s)) return '일시';
+  if(/활동일시|일시|일정/.test(s)) return '일시';
+  if(/신청기간|모집기간|접수기간/.test(s)) return null;        // 신청기간은 상단 헤더가 표시
+  if(/활동내용|프로그램내용|내용|안내/.test(s)) return '내용';   // 핵심내용으로 사용
   if(/대상|참가자격|신청자격|자격/.test(s)) return '대상';
   return null;
 }
+const _SK_KW = ['활동일시','활동내용','프로그램내용','신청방법','접수방법','참여방법','모집인원','참여인원','대상연령','신청기간','모집기간','접수기간','참가비','수강료','이용료','연락처','문의처','일시','일정','대상','장소','정원','인원','회차','회기','문의','내용','안내'].sort((a,b)=>b.length-a.length);
+const _SK_RE = new RegExp('(?:^|[^가-힣A-Za-z])(' + _SK_KW.join('|') + ')\\s*[:：]\\s*', 'gu');
+const _SK_BULLET = /[✅✔☑▶▷◆◇●○■□★☆🚩📍👤💸💰📅📦🔗🍳🎁🗓💡📌▪▫🎈🔔]/u;
+function _skCleanVal(v){
+  v = v.split(_SK_BULLET)[0];          // 다음 불릿 이후 잘라냄 (➡ 화살표는 보존)
+  v = v.split(/\s*※/)[0];              // ※ 노트 제거
+  v = v.replace(/\s+\d{1,2}[.)]\s*$/,'');        // 끝의 다음 번호("4." 등) 제거
+  v = v.replace(/[\s\uD800-\uDBFF]+$/u,'');       // 끝 공백/외톨이 surrogate 제거
+  return v.replace(/\s+/g,' ').trim();
+}
 function parseBulletFields(text){
-  if(!text || !BULLET_SPLIT.test(text)) return null;
-  const parts = String(text).split(BULLET_SPLIT).map(s=>s.trim()).filter(Boolean);
-  const raw = {}; let introSet=false;
-  for(const seg of parts){
-    const m = seg.match(/^([가-힣A-Za-z][가-힣A-Za-z\s]{1,13}?)\s*[:：]\s*([\s\S]+)$/);
-    if(m){
-      const canon = mapBulletLabel(m[1]);
-      let val = m[2].replace(/\s+/g,' ').trim().split(/\s*※/)[0].trim();  // 뒤따르는 ※ 노트 제거
-      if(canon && val && !raw[canon]) raw[canon]=val;
-    } else if(!introSet && seg.length>=8){
-      raw['_intro'] = seg.replace(/\s+/g,' ').trim(); introSet=true;       // 첫 불릿 이전 본문 = 핵심내용
-    }
+  if(!text) return null;
+  const hits=[]; let m; _SK_RE.lastIndex=0;
+  while((m=_SK_RE.exec(text))) hits.push({label:m[1], vs:m.index+m[0].length, ks:m.index});
+  if(!hits.length) return null;
+  const raw={};
+  const intro = text.slice(0, hits[0].ks).replace(/\s+/g,' ').trim();
+  for(let i=0;i<hits.length;i++){
+    const ve = i+1<hits.length ? hits[i+1].ks : text.length;
+    const v  = _skCleanVal(text.slice(hits[i].vs, ve));
+    const c  = mapBulletLabel(hits[i].label);
+    if(c && v && !raw[c]) raw[c]=v;
   }
+  if(intro && intro.length>=8) raw['_intro']=intro;
   return Object.keys(raw).filter(k=>k!=='_intro').length ? raw : null;
 }
+// 경기 게시판이 본문 대신 네비게이션 메뉴를 긁어온 경우의 시그니처
+const GG_NAV_JUNK = /본문\s*바로가기[\s\S]*주메뉴\s*바로가기/;
 
 // raw 라벨맵 → 표준 필드 {label,value}[]
 function buildFields(raw){
@@ -1407,6 +1420,10 @@ function cleanContent(r){
   let imageUrl = (r.image_url || '').trim();
   const imgM = rawD.match(/\[\[IMG:([^\]]+)\]\]/);
   if(imgM){ if(!imageUrl) imageUrl = imgM[1].trim(); rawD = rawD.replace(/\[\[IMG:[^\]]+\]\]\s*/,'').trim(); }
+  // 메뉴/로고/스프라이트 등 콘텐츠 아닌 이미지 제외 (경기 네비 메뉴 menu.png 등)
+  if(imageUrl && /\/menu\.png|\/assets\/.*\/(img|menu)\/|sprite|\blogo\b|btn_|favicon/i.test(imageUrl)) imageUrl='';
+  // 경기 게시판이 본문 대신 네비게이션 메뉴를 긁어온 경우 → 본문으로 쓰지 않음
+  if(GG_NAV_JUNK.test(rawD)) rawD='';
   // 인천 등 리스트 머리말 제거 ("인천 1인가구 통합검색 상세보기")
   const stripListJunk = t => (t||'').replace(/^(인천\s*1인가구\s*)?(통합검색\s*)?(상세보기\s*)+/,'').trim();
   rawD = stripListJunk(rawD); rawS = stripListJunk(rawS);
@@ -1571,7 +1588,7 @@ const REQUIRED_TERMS = [0, 1];
 
 let hist = [];
 let terms_ = [false,false,false,false];
-let sortMode = 'match';
+let sortMode = 'deadline';   // 기본: 전체지역→접수중→마감 빠른 순
 let liked = new Set();
 let curId = null;
 let nickCheckTimer = null;
@@ -2225,8 +2242,8 @@ function refreshFeedResultUI(){
           📍 <button onclick="goTo('sc-location')" style="background:none;border:none;cursor:pointer;font-family:inherit;font-size:inherit;font-weight:inherit;color:var(--dandan);text-decoration:underline;text-underline-offset:2px;padding:0;">${locLabel}</button><span id="result-cnt"></span> 혜택
         </div>
         <div class="sort-wrap">
-          <button class="sort-btn on" onclick="setSort(this,'match')">추천순</button>
-          <button class="sort-btn" onclick="setSort(this,'deadline')">마감임박순</button>
+          <button class="sort-btn" onclick="setSort(this,'match')">추천순</button>
+          <button class="sort-btn on" onclick="setSort(this,'deadline')">마감임박순</button>
         </div>
       </div>
       <div class="feed-list" id="feed-list"></div>
@@ -2352,14 +2369,12 @@ function renderFeed(resetLimit=true){
   if(resetLimit) feedLimit = 10;
   const list = document.getElementById('feed-list');
   if(!list) return;
-  const selDist = (typeof selectedLocation!=='undefined' && selectedLocation) ? selectedLocation.district : null;
+  // 광역만 선택(시·군 미지정) → 전체지역 사업 먼저, 그 안에서 접수중, 그 안에서 마감 빠른 순
+  const isWide = p => !p.region_district || /^(전체|전지역|전\s*지역|공통|전국|광역)$/.test(String(p.region_district).trim());
   let d = [...DB].sort((a,b)=>{
-    // 1) 선택한 시·군·구 우선 (해당 구 → 광역 공통)
-    if(selDist){
-      const ad = a.region_district===selDist ? 0 : 1;
-      const bd = b.region_district===selDist ? 0 : 1;
-      if(ad !== bd) return ad - bd;
-    }
+    // 1) 전체 지역에 다 해당하는 사업 먼저 (특정 시·군 전용은 뒤로)
+    const aw = isWide(a) ? 0 : 1, bw = isWide(b) ? 0 : 1;
+    if(aw !== bw) return aw - bw;
     // 2) 접수중 > 상시 > 마감
     const at = statusTier(a), bt = statusTier(b);
     if(at !== bt) return at - bt;
