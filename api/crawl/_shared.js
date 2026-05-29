@@ -189,6 +189,35 @@ export function extractImageUrl(html, baseOrigin = '') {
   return '';
 }
 
+/**
+ * Open Graph 메타태그 추출 (og:image / og:description / og:title)
+ * 외부 목적지 페이지 구조를 몰라도 표준 태그라 동일하게 동작 — 경기 외부링크 보강용.
+ * baseUrl로 상대경로 og:image를 절대경로화.
+ */
+export function extractOgTags(html, baseUrl = '') {
+  if (!html) return { image: '', description: '', title: '' };
+  const grab = (prop) => {
+    const re1 = new RegExp(`<meta[^>]+(?:property|name)=["']og:${prop}["'][^>]*content=["']([^"']*)["']`, 'i');
+    const re2 = new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]+(?:property|name)=["']og:${prop}["']`, 'i');
+    const m = html.match(re1) || html.match(re2);
+    return m ? m[1].replace(/&amp;/g, '&').trim() : '';
+  };
+  let image = grab('image');
+  const description = grab('description');
+  const title = grab('title');
+  if (image) {
+    if (image.startsWith('//')) image = 'https:' + image;
+    else if (image.startsWith('/')) { try { image = new URL(baseUrl).origin + image; } catch { image = ''; } }
+    else if (!/^https?:\/\//i.test(image)) image = '';
+    // og:image는 페이지가 지정한 대표 이미지 → 파일명이 명백한 로고/파비콘/기본썸네일일 때만 제외
+    if (image) {
+      const fname = (image.split(/[?#]/)[0].split('/').pop() || '').toLowerCase();
+      if (/^(logo|favicon|default|noimage|noimg|blank|spacer)[._\-]/.test(fname) || /favicon|sprite/.test(fname)) image = '';
+    }
+  }
+  return { image, description, title };
+}
+
 /** 상세 HTML에서 본문 텍스트 추출 (커스텀 정규식 우선, 없으면 일반 콘텐츠 영역) */
 export function extractMainText(html, customRegexes = []) {
   if (!html) return '';

@@ -6,7 +6,7 @@
 
 import {
   fetchWithRetry, fetchText, upsertPolicies, mapCategory, parseDate, normalizeDistrict,
-  stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency, extractImageUrl,
+  stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency, extractImageUrl, extractOgTags,
 } from './_shared.js';
 
 const API         = 'https://www.gg.go.kr/1ingg/bbs/ajax/boardList.do';
@@ -119,7 +119,7 @@ export default async function handler(req, res) {
   let detailOk = 0;
   const targets = deduped.slice(0, DETAIL_LIMIT);
   await mapWithConcurrency(targets, DETAIL_CONC, async (r) => {
-    const detail = await fetchDetail(r.gno2);
+    const detail = await fetchDetail(r.gno2, r.policy.apply_url);
     if (detail) { enrichWithDetail(r.policy, detail); detailOk++; }
   });
 
@@ -138,18 +138,40 @@ export default async function handler(req, res) {
   });
 }
 
-/** 상세 페이지 본문 추출 */
-async function fetchDetail(gno2) {
+/** 상세 보강: 내부 게시판(텍스트·이미지) + 외부 목적지 페이지의 og 태그(포스터·요약) */
+async function fetchDetail(gno2, applyUrl) {
+  let text = '', image = '', fields = {};
+  // 1) 내부 게시판 상세
   try {
     const url = `${DETAIL_VIEW}?bsIdx=873&menuId=4112&bIdx=${gno2}`;
     const html = await fetchText(url, { timeout: 8000 });
-    const text = extractMainText(html, [
+    text  = extractMainText(html, [
       /<div[^>]*class="[^"]*(?:view_cont|board_view|bbs_view|view_area)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
-    ]);
-    const image = extractImageUrl(html, ORIGIN);
-    if ((!text || text.length < 30) && !image) return null;
-    return { text: text || '', image, fields: extractDetailFields(text || '') };
-  } catch { return null; }
+    ]) || '';
+    image = extractImageUrl(html, ORIGIN) || '';
+    fields = extractDetailFields(text);
+  } catch { /* 내부 실패해도 외부 시도 */ }
+
+  // 2) 외부 목적지 페이지(ADD_COLUMN06)의 og 태그 — 경기 핵심 보강
+  //    (boardView 폴백이 아닌 진짜 외부 링크일 때만)
+  if (isExternalUrl(applyUrl)) {
+    try {
+      const extHtml = await fetchText(applyUrl, { timeout: 8000 });
+      const og = extractOgTags(extHtml, applyUrl);
+      if (og.image && !image) image = og.image;                 // 포스터 보강
+      if (og.description && og.description.length > text.length) // 더 풍부한 요약이면 교체
+        text = og.description;
+    } catch { /* 외부 차단·타임아웃은 무시 */ }
+  }
+
+  if ((!text || text.length < 20) && !image) return null;
+  return { text: text || '', image, fields };
+}
+
+/** boardView 내부 폴백이 아닌 외부 목적지 링크인지 */
+function isExternalUrl(u) {
+  if (!u || !/^https?:\/\//i.test(u)) return false;
+  return !/\/1ingg\/bbs\/board(View)?\.do/i.test(u);
 }
 
 /** 상세 결과를 policy에 병합 (기존 값이 빈약할 때만 보강) */
