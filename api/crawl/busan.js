@@ -33,7 +33,9 @@ export default async function handler(req, res) {
   const results = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
     try {
-      const html = await fetchText(`${LIST}?query=list&page=${page}`, { timeout: 9000 });
+      // 목록은 program_01.html 기본뷰 (query=list 아님). 2페이지부터 ?page=N
+      const url = page === 1 ? LIST : `${LIST}?page=${page}`;
+      const html = await fetchText(url, { timeout: 9000 });
       const items = parseList(html, page);
       if (!items.length) break;
       results.push(...items);
@@ -97,11 +99,12 @@ function parseList(html, page) {
       if (!title) continue;
 
       const status = tds[tds.length - 1] || '';
-      if (/마감/.test(status)) continue;  // 접수마감 제외
+      // 부산은 프로그램이 띄엄띄엄 올라오므로 마감 건도 수집(앱에서 '마감' 표시).
 
+      // 접수기간 = tds[3] (번호0/센터1/제목2/접수기간3/진행기간4/모집5/상태6)
       const dates = (tds[3] || '').match(/\d{4}[.\-]\d{1,2}[.\-]\d{1,2}/g);
       const apply_start = dates && dates[0] ? parseDate(dates[0]) : null;
-      const apply_end   = dates && dates.length ? parseDate(dates[dates.length - 1]) : null;
+      const apply_end   = dates && dates.length >= 2 ? parseDate(dates[1]) : (dates && dates[0] ? parseDate(dates[0]) : null);
 
       const gu = extractGu(center) || extractGu(title);
       const viewUrl = `${LIST}?query=view&id=${id}&page=${page}`;
