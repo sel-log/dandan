@@ -2715,6 +2715,11 @@ initCitySelects();
   if(user && selectedLocation){
     loadPolicies(selectedLocation.city, selectedLocation.district);
   }
+
+  // 🛠 dev 모드: 스플래시 건너뛰고 피드로 바로 이동
+  if(user?.provider === 'dev'){
+    goTo('sc-feed');
+  }
 })();
 
 // 카드 클릭 이벤트 위임 — renderCard의 data-id 기반
