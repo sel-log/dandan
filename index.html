@@ -1250,6 +1250,8 @@ function regionLabel(r){
 // 신청 링크 교정 (경기: 외부 ADD_COLUMN06 링크가 깨진 경우가 많아 항상 gg 공식 게시글로)
 function fixApplyUrl(r){
   let u = decodeEntities((r.apply_url || '').trim());
+  // 슬래시 누락 보정: ".go.kr" 등 바로 뒤에 경로가 붙은 깨진 링크 (suwon.go.krBD_board → suwon.go.kr/BD_board)
+  u = u.replace(/(\.(?:go|or|re|ne|co)\.kr)(?=[A-Za-z])/i, '$1/');
   if(r.region_city === '경기'){
     const m = String(r.id||'').match(/gg1in_(\d+)/);
     if(m) return `https://www.gg.go.kr/1ingg/bbs/boardView.do?bsIdx=873&menuId=4112&bIdx=${m[1]}`;
@@ -1333,7 +1335,7 @@ const FIELD_MAP = (()=>{
 const SKIP_LABELS = ['구분','지역(소속)','지역','소속','기관명','센터명','진행상태','상태','성별','접수기간','모집기간'];
 // 본문/혜택 라벨
 const BODY_LABELS = ['지원내용','활동내용','프로그램내용','내용','안내','프로그램안내'];
-const FIELD_ORDER = ['진행 기간','진행 방식','신청 방법','모집 인원','참가비','회차','장소','대상','대상 연령','문의','카테고리'];
+const FIELD_ORDER = ['진행 기간','일시','진행 방식','신청 방법','모집 인원','참가비','회차','장소','대상','대상 연령','문의','카테고리'];
 const ALL_LABEL_SET = new Set([...Object.keys(FIELD_MAP), ...SKIP_LABELS, ...BODY_LABELS]);
 
 // "라벨 값 라벨 값…" / "라벨 : 값" 구조 파싱 (토큰 단위, 콜론 제거). _intro=첫 라벨 이전 본문
@@ -1346,18 +1348,52 @@ function parseFields(text){
   flush();
   return raw;
 }
+// 불릿(✅·▶·●·■ 등)으로 항목이 나열된 본문 파서 — 경기 gg1in("✅대상 : … ✅일시 : …") 형식
+const BULLET_SPLIT = /[✅✔☑▶▷◆◇●○■□]+\s*/;
+function mapBulletLabel(L){
+  const s = L.replace(/\s+/g,'');
+  if(/문의|연락처|전화|콜센터/.test(s)) return '문의';
+  if(/신청방법|접수방법|참여방법|신청방식/.test(s)) return '신청 방법';
+  if(/대상연령|연령/.test(s)) return '대상 연령';
+  if(/모집인원|참여인원|정원|인원/.test(s)) return '모집 인원';
+  if(/참가비|수강료|이용료|참가비용|비용/.test(s)) return '참가비';
+  if(/회차|회기|횟수/.test(s)) return '회차';
+  if(/장소|위치|진행장소/.test(s)) return '장소';
+  if(/일시|일정/.test(s)) return '일시';
+  if(/대상|참가자격|신청자격|자격/.test(s)) return '대상';
+  return null;
+}
+function parseBulletFields(text){
+  if(!text || !BULLET_SPLIT.test(text)) return null;
+  const parts = String(text).split(BULLET_SPLIT).map(s=>s.trim()).filter(Boolean);
+  const raw = {}; let introSet=false;
+  for(const seg of parts){
+    const m = seg.match(/^([가-힣A-Za-z][가-힣A-Za-z\s]{1,13}?)\s*[:：]\s*([\s\S]+)$/);
+    if(m){
+      const canon = mapBulletLabel(m[1]);
+      let val = m[2].replace(/\s+/g,' ').trim().split(/\s*※/)[0].trim();  // 뒤따르는 ※ 노트 제거
+      if(canon && val && !raw[canon]) raw[canon]=val;
+    } else if(!introSet && seg.length>=8){
+      raw['_intro'] = seg.replace(/\s+/g,' ').trim(); introSet=true;       // 첫 불릿 이전 본문 = 핵심내용
+    }
+  }
+  return Object.keys(raw).filter(k=>k!=='_intro').length ? raw : null;
+}
+
 // raw 라벨맵 → 표준 필드 {label,value}[]
 function buildFields(raw){
   if(!raw) return [];
   const std = {};
   for(const [k,v] of Object.entries(raw)){
-    const canon = FIELD_MAP[k]; if(!canon || std[canon]) continue;
+    const canon = FIELD_ORDER.includes(k) ? k : FIELD_MAP[k];   // 불릿 파서가 준 표준명은 그대로 사용
+    if(!canon || std[canon]) continue;
     let val = v.replace(/지도\s*보기|바로\s*가기/g,'').replace(/\s+/g,' ').trim();
     if(canon==='진행 방식') val = formatMethod(val) || val;
-    if(canon==='신청 방법') val = formatMethod(val) || clip(val,30);
+    if(canon==='신청 방법') val = formatMethod(val) || clip(val,48);
     if(canon==='대상')      val = val.replace(/\s*\/\s*성별무관/,'').trim();
     if(/^(성별무관|성별\s*무관|연령무관|연령\s*무관|무관|해당없음|없음|미정|-|0)$/.test(val)) continue;
-    std[canon] = clip(val, canon==='문의'?40 : canon==='장소'?44 : 36);
+    const lim = canon==='문의'?40 : canon==='장소'?44 : (canon==='일시'||canon==='신청 방법')?48 : canon==='대상'?50 : 36;
+    std[canon] = clip(val, lim);
   }
   return FIELD_ORDER.filter(f=>std[f]).map(f=>({label:f, value:std[f]}));
 }
@@ -1376,7 +1412,7 @@ function cleanContent(r){
   rawD = stripListJunk(rawD); rawS = stripListJunk(rawS);
   // 인천 등: benefit_detail이 사이트 네비게이션 boilerplate면 본문으로 쓰지 않음
   const junkD = isBoilerplate(rawD), junkS = isBoilerplate(rawS);
-  const pf    = parseFields(rawD) || parseFields(rawS) || {};
+  const pf    = parseBulletFields(rawD) || parseFields(rawD) || parseFields(rawS) || {};
   const keys  = Object.keys(pf).filter(k=>k!=='_intro');
   const structured = keys.length >= 1;   // 구조화 라벨이 하나라도 잡히면 구조 데이터
 
@@ -1412,7 +1448,7 @@ function cleanContent(r){
   else if(r.apply_method && r.apply_method !== 'both') method = formatMethod(r.apply_method);
 
   // 대상
-  let target = (pf['지원대상']||pf['참여대상']||r.target_summary||'').trim();
+  let target = (pf['지원대상']||pf['참여대상']||pf['대상']||r.target_summary||'').trim();
 
   // 자격조건: 구조화 데이터면 conditions_plain은 신뢰불가 → 비움. 아니면 짧고 깔끔한 것만(네비 쓰레기 제외).
   let conds=[];
