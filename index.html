@@ -1221,10 +1221,7 @@ async function loadPolicies(city, district){
     DB = [...DB_FALLBACK];
   } finally {
     showFeedLoading(false);
-    renderFeed();
-    const cnt = document.getElementById('feed-list')?.children.length || DB.length;
-    const cntEl = document.getElementById('result-cnt');
-    if(cntEl) cntEl.textContent = ` (${cnt}개)`;
+    renderFeed();   // result-cnt(총 결과 수)는 renderFeed가 직접 갱신
   }
 }
 
@@ -1246,95 +1243,128 @@ function regionLabel(r){
   return city;
 }
 
-// 신청방법 enum/원문 → 한글 (알 수 없는 긴 값은 숨김='')
+// 진행/신청 방식 원문 → 한글 (대면/비대면/온라인 구분, 알 수 없는 긴 값은 숨김='')
 function formatMethod(raw){
   if(!raw || raw==='-') return '';
   const s = String(raw).trim(), low = s.toLowerCase();
-  const on  = low==='online'  || /온라인|인터넷|이메일|누리집|홈페이지|web/i.test(s);
-  const off = low==='offline' || /방문|대면|현장|우편|전화|내방|오프라인/i.test(s);
-  if(low==='both' || (on&&off)) return '온라인·방문';
+  if(low==='both') return '온라인·방문';
+  const has대면 = /대면/.test(s), has비대면 = /비대면/.test(s);
+  const on  = low==='online'  || has비대면 || /온라인|인터넷|이메일|누리집|홈페이지|화상|zoom/i.test(s);
+  const off = low==='offline' || (has대면 && !has비대면) || /방문|현장|우편|전화|내방|오프라인/i.test(s);
+  if(on && off) return '온라인·방문';
   if(on)  return '온라인';
   if(off) return '방문·대면';
   return s.length<=24 ? s : '';
 }
-
-// "라벨 값 라벨 값…" 구조 덤프 파싱 (토큰 단위)
-const STRUCT_LABELS = ['센터명','기관명','장소','회기','진행상태','성별','연령별','진행방법','모집인원','참가비','이용료','신청기간','접수기간','문의처','문의','지원대상','지원내용','활동내용','프로그램내용','신청방법'];
-const STRUCT_SET = new Set(STRUCT_LABELS);
-function parseStructured(text){
-  if(!text) return null;
-  const tokens = String(text).replace(/\s+/g,' ').trim().split(' ');
-  const out = {}; let cur=null, buf=[];
-  const flush=()=>{ if(cur && buf.length) out[cur]=(out[cur]?out[cur]+' ':'')+buf.join(' '); buf=[]; };
-  for(const tok of tokens){ if(STRUCT_SET.has(tok)){ flush(); cur=tok; } else buf.push(tok); }
-  flush();
-  return Object.keys(out).length>=2 ? out : null;
-}
 function clip(s,n){ s=(s||'').trim(); return s.length>n ? s.slice(0,n).trim()+'…' : s; }
 const _norm = s => (s||'').replace(/\s/g,'');
+// HTML 엔티티 디코드 (&#039; &quot; 등)
+function decodeEntities(s){
+  if(!s) return s;
+  return String(s)
+    .replace(/&#0*39;|&apos;|&rsquo;|&lsquo;/g,"'")
+    .replace(/&quot;|&ldquo;|&rdquo;/g,'"')
+    .replace(/&#0*40;/g,'(').replace(/&#0*41;/g,')')
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+    .replace(/&nbsp;/g,' ').replace(/&middot;/g,'·')
+    .replace(/&amp;/g,'&');
+}
+
+/* ── 포털 상세 라벨 → 단단 표준 필드 매핑 (서울·경기·인천·부산 공통) ── */
+const FIELD_MAP = (()=>{
+  const g = {
+    '진행 기간': ['진행기간','사업기간','교육기간','운영기간','활동기간'],
+    '진행 방식': ['진행방법'],
+    '신청 방법': ['신청방법','접수방법'],
+    '모집 인원': ['모집인원','참여인원','정원','모집정원'],
+    '참가비':    ['참가비','수강료','이용료','참가비용'],
+    '회차':      ['회기','회기수','횟수','회차'],
+    '장소':      ['장소','진행장소','사업장소','교육장소'],
+    '대상':      ['참여대상','지원대상','신청대상'],
+    '대상 연령': ['연령별','대상연령'],
+    '문의':      ['진행문의','문의','문의처','연락처'],
+    '카테고리':  ['카테고리'],
+  };
+  const m = {}; for(const [c,arr] of Object.entries(g)) for(const a of arr) m[a]=c; return m;
+})();
+// 경계용(값 미표시) 라벨
+const SKIP_LABELS = ['구분','지역(소속)','지역','소속','기관명','센터명','진행상태','상태','성별','접수기간','모집기간'];
+// 본문/혜택 라벨
+const BODY_LABELS = ['지원내용','활동내용','프로그램내용','내용','안내','프로그램안내'];
+const FIELD_ORDER = ['진행 기간','진행 방식','신청 방법','모집 인원','참가비','회차','장소','대상','대상 연령','문의','카테고리'];
+const ALL_LABEL_SET = new Set([...Object.keys(FIELD_MAP), ...SKIP_LABELS, ...BODY_LABELS]);
+
+// "라벨 값 라벨 값…" / "라벨 : 값" 구조 파싱 (토큰 단위, 콜론 제거). _intro=첫 라벨 이전 본문
+function parseFields(text){
+  if(!text) return null;
+  const toks = String(text).replace(/\s+/g,' ').trim().split(' ');
+  const raw = {}; let cur='_intro', buf=[];
+  const flush=()=>{ if(cur){ const v=buf.join(' ').replace(/^[:：·\-\s]+/,'').replace(/[:：·\-\s]+$/,'').trim(); if(v) raw[cur]=(raw[cur]?raw[cur]+' ':'')+v; } buf=[]; };
+  for(const t of toks){ if(ALL_LABEL_SET.has(t)){ flush(); cur=t; } else buf.push(t); }
+  flush();
+  return raw;
+}
+// raw 라벨맵 → 표준 필드 {label,value}[]
+function buildFields(raw){
+  if(!raw) return [];
+  const std = {};
+  for(const [k,v] of Object.entries(raw)){
+    const canon = FIELD_MAP[k]; if(!canon || std[canon]) continue;
+    let val = v.replace(/지도\s*보기|바로\s*가기/g,'').replace(/\s+/g,' ').trim();
+    if(canon==='진행 방식') val = formatMethod(val) || val;
+    if(canon==='신청 방법') val = formatMethod(val) || clip(val,30);
+    if(canon==='대상')      val = val.replace(/\s*\/\s*성별무관/,'').trim();
+    if(/^(성별무관|성별\s*무관|연령무관|연령\s*무관|무관|해당없음|없음|미정|-|0)$/.test(val)) continue;
+    std[canon] = clip(val, canon==='문의'?40 : canon==='장소'?44 : 36);
+  }
+  return FIELD_ORDER.filter(f=>std[f]).map(f=>({label:f, value:std[f]}));
+}
 
 // 카드/상세 정제: {summary, benefit, info[], method, conds[], target}
 function cleanContent(r){
-  const title   = (r.title||'').trim();
-  const rawD    = (r.benefit_detail||'').trim();
-  const rawS    = (r.benefit_summary||'').trim();
-  const sD = parseStructured(rawD), sS = parseStructured(rawS);
-  const struct = sD || sS;
+  const title = decodeEntities((r.title||'').trim());
+  const rawD  = decodeEntities((r.benefit_detail||'').trim());
+  const rawS  = decodeEntities((r.benefit_summary||'').trim());
+  const pf    = parseFields(rawD) || parseFields(rawS) || {};
+  const keys  = Object.keys(pf).filter(k=>k!=='_intro');
+  const structured = keys.length >= 1;   // 구조화 라벨이 하나라도 잡히면 구조 데이터
 
-  // 핵심 혜택
-  let benefit = '';
-  if(struct) benefit = struct['지원내용']||struct['활동내용']||struct['프로그램내용']||'';
-  if(!benefit){
-    let cand = (rawD && !sD) ? rawD : (rawS && !sS ? rawS : '');
-    if(cand && _norm(cand)!==_norm(title)) benefit = cand;
-  }
-  benefit = clip(benefit, 300);
+  // 표준 상세 필드
+  const fields = buildFields(pf);
 
-  // 카드 한 줄 설명
-  let summary = '';
-  if(struct){
-    summary = struct['지원내용']||struct['활동내용']||struct['프로그램내용']||'';
-    if(!summary){
-      const bits=[];
-      if(struct['장소'])    bits.push('📍 '+clip(struct['장소'],24));
-      if(struct['모집인원']) bits.push('👥 '+clip(struct['모집인원'],12));
-      summary = bits.join('   ');
-    }
-  } else if(rawS && _norm(rawS)!==_norm(title)){
-    summary = rawS;
+  // 핵심 내용(본문): 지원내용류 → _intro(제목과 다를 때)
+  let benefit = pf['지원내용']||pf['활동내용']||pf['프로그램내용']||pf['내용']||pf['안내']||'';
+  if(!benefit && pf['_intro'] && _norm(pf['_intro'])!==_norm(title)) benefit = pf['_intro'];
+  if(!structured && !benefit && rawS && _norm(rawS)!==_norm(title)) benefit = rawS;
+  benefit = clip(benefit, 320);
+
+  // 카드 한 줄 설명: 본문 우선, 없으면 모집인원·참가비 요약(지역은 이미 상단 표시)
+  let summary = benefit;
+  if(!summary && structured){
+    const get = c => (fields.find(x=>x.label===c)||{}).value;
+    const bits=[]; const pp=get('모집 인원'), fee=get('참가비');
+    if(pp) bits.push('👥 모집 '+pp);
+    if(fee) bits.push('💰 '+fee);
+    summary = bits.join('   ');
   }
   summary = clip(summary, 80);
 
-  // 상세 정보 행
-  const info=[];
-  let target = (r.target_summary||'').trim();
-  if(struct){
-    if(struct['지원대상']) target = clip(struct['지원대상'],60);
-    if(struct['장소'])    info.push({label:'장소',     value:clip(struct['장소'],60)});
-    if(struct['연령별'])  info.push({label:'대상 연령', value:clip(struct['연령별'],40)});
-    if(struct['모집인원']) info.push({label:'모집 인원', value:clip(struct['모집인원'],30)});
-    const fee = struct['참가비']||struct['이용료'];
-    if(fee) info.push({label:'참가비', value:clip(fee,30)});
-    const inq = struct['문의']||struct['문의처'];
-    if(inq) info.push({label:'문의', value:clip(inq,40)});
-  }
-  if(target && target!=='-' && target!=='1인가구' && !info.some(x=>x.label==='대상')){
-    info.unshift({label:'대상', value:clip(target,60)});
-  }
+  // 진행 방식(상단 박스용)
+  const method = formatMethod(pf['진행방법'] || pf['진행 방식'] || r.apply_method);
 
-  // 신청방법
-  const method = formatMethod(struct?.['진행방법'] || struct?.['신청방법'] || r.apply_method);
+  // 대상
+  let target = (pf['지원대상']||pf['참여대상']||r.target_summary||'').trim();
 
-  // 자격조건: 구조화 데이터의 conditions_plain은 오파싱이라 비움. 아니면 짧고 깔끔한 것만.
+  // 자격조건: 구조화 데이터면 conditions_plain은 신뢰불가 → 비움. 아니면 짧고 깔끔한 것만.
   let conds=[];
-  if(!struct){
+  if(!structured){
     conds = (r.conditions_plain||[])
       .map(c=>String(c).trim())
       .filter(c=> c && c.length>=4 && c.length<=50 && _norm(c)!==_norm(title))
       .slice(0,5).map(c=>({i:'✅',t:c,e:''}));
   }
 
-  return { summary, benefit, info, method, conds, target: target||'-' };
+  return { summary, benefit, info: fields, method, conds, target: target||'-' };
 }
 
 function normalizePolicy(r){
@@ -1343,8 +1373,9 @@ function normalizePolicy(r){
     id:       r.id,
     org:      (r.org||'').split(/\s+/).filter((w,i,a)=> i===0 || w!==a[i-1]).join(' '),
     region:   regionLabel(r),
+    region_district: r.region_district || null,
     cat:      r.category,
-    title:    r.title,
+    title:    decodeEntities(r.title),
     desc:     c.summary,
     benefit:  c.benefit,
     bdgs:     buildBadgesFromPolicy(r),
@@ -2099,11 +2130,7 @@ function refreshFeedResultUI(){
       </div>
       <div class="feed-list" id="feed-list"></div>
       <div style="height:16px;"></div>`;
-    renderFeed();
-    // 개수 반영 — #result-cnt span에 직접 기입
-    const cnt = document.getElementById('feed-list')?.children.length || DB.length;
-    const cntEl = document.getElementById('result-cnt');
-    if(cntEl) cntEl.textContent = ` (${cnt}개)`;
+    renderFeed();   // result-cnt는 renderFeed가 직접 갱신
   } else {
     // 비로그인 + 지역 설정됨 → 칩바는 보이지만 결과는 잠김 안내
     bannerWrap.innerHTML = '';
@@ -2201,8 +2228,12 @@ const CITY_MAP_SOON = {
 
 // 광역시·도 드롭다운 옵션 HTML 생성 (서비스 중 + 준비중 구분)
 function _buildCityOptions(){
+  const PRIORITY = { 서울:0, 경기:1 };   // 서울>경기>나머지 가나다
   const serviceOpts = Object.entries(CITY_MAP)
-    .sort((a,b) => a[1].label.localeCompare(b[1].label,'ko'))
+    .sort((a,b) => {
+      const pa = PRIORITY[a[0]] ?? 9, pb = PRIORITY[b[0]] ?? 9;
+      return pa!==pb ? pa-pb : a[1].label.localeCompare(b[1].label,'ko');
+    })
     .map(([v, d]) => `<option value="${v}">${d.label}</option>`)
     .join('');
   const soonOpts = Object.values(CITY_MAP_SOON)
@@ -2224,19 +2255,34 @@ const REGION_SOON_NOTICE = `
 
 
 let feedLimit = 10;
+// 상태 단계: 0=접수중(마감일 있음) 1=상시 2=마감
+function statusTier(p){
+  if(typeof p.dday !== 'number') return 1;
+  if(p.dday < 0)    return 2;   // 마감
+  if(p.dday >= 999) return 1;   // 상시
+  return 0;                      // 접수중
+}
 function renderFeed(resetLimit=true){
   if(resetLimit) feedLimit = 10;
   const list = document.getElementById('feed-list');
   if(!list) return;
-  const isExpired = p => typeof p.dday === 'number' && p.dday < 0;
+  const selDist = (typeof selectedLocation!=='undefined' && selectedLocation) ? selectedLocation.district : null;
   let d = [...DB].sort((a,b)=>{
-    const ax = isExpired(a), bx = isExpired(b);
-    if(ax !== bx) return ax ? 1 : -1;            // 접수중·상시 먼저, 마감은 맨 뒤
-    if(sortMode==='deadline'){
-      // 마감임박순: 유효 건은 D-day 가까운 순(상시=999는 뒤), 마감 건은 최근 마감 순
-      return ax ? (b.dday - a.dday) : (a.dday - b.dday);
+    // 1) 선택한 시·군·구 우선 (해당 구 → 광역 공통)
+    if(selDist){
+      const ad = a.region_district===selDist ? 0 : 1;
+      const bd = b.region_district===selDist ? 0 : 1;
+      if(ad !== bd) return ad - bd;
     }
-    return b.match - a.match;                      // 추천순
+    // 2) 접수중 > 상시 > 마감
+    const at = statusTier(a), bt = statusTier(b);
+    if(at !== bt) return at - bt;
+    // 3) 같은 단계 내 정렬
+    if(sortMode==='deadline'){
+      if(at===2) return b.dday - a.dday;   // 마감: 최근 마감 먼저
+      return a.dday - b.dday;               // 접수중·상시: 마감 가까운 순
+    }
+    return b.match - a.match;               // 추천순
   });
   const total = d.length;
   const shown = d.slice(0, feedLimit);
@@ -2244,7 +2290,8 @@ function renderFeed(resetLimit=true){
     ? `<button onclick="showMore()" style="width:100%;margin:4px 0 20px;padding:15px;border:1.5px solid var(--border);background:var(--white);border-radius:var(--r-lg);color:var(--dandan);font-family:inherit;font-weight:700;font-size:15px;cursor:pointer;">더보기 <span style="color:var(--text3);font-weight:500;">(${total-feedLimit}개 더)</span></button>`
     : '';
   list.innerHTML = shown.map(p=>renderCard(p)).join('') + moreBtn;
-  ['mc','mb'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=total; });
+  const cntEl = document.getElementById('result-cnt');
+  if(cntEl) cntEl.textContent = ` (${total}개)`;
 }
 function showMore(){ feedLimit += 10; renderFeed(false); }
 
@@ -2252,10 +2299,7 @@ function setSort(el,s){
   document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('on'));
   el.classList.add('on');
   sortMode=s;
-  renderFeed();
-  const cnt = document.getElementById('feed-list')?.children.length || 0;
-  const cntEl = document.getElementById('result-cnt');
-  if(cntEl) cntEl.textContent = ` (${cnt}개)`;
+  renderFeed();   // result-cnt는 renderFeed가 직접 갱신
 }
 
 /* ═══════════════════════════════════════
@@ -2347,20 +2391,25 @@ function openDetail(id){
 
   const benefit  = p.benefit || '';
   const conds    = p.conds  || [];
-  const info     = p.info   || [];
+  const info     = (p.info || []).filter(x=>x.label!=='진행 방식');  // 진행방식은 상단 박스에 표시
   const how      = p.how    || [];
   const methodTxt= p.method || '';
 
   document.getElementById('dt-body').innerHTML = `
-    ${benefit ? `<div class="hl"><div class="hl-lbl">핵심 혜택</div><div class="hl-val">${benefit}</div></div>` : ''}
     <div class="info-grid">
       <div class="ib"><div class="ib-lbl">신청 기간</div><div class="ib-val">${p.period||'상시'}</div></div>
-      ${methodTxt ? `<div class="ib"><div class="ib-lbl">신청 방법</div><div class="ib-val">${methodTxt}</div></div>` : ''}
+      ${methodTxt ? `<div class="ib"><div class="ib-lbl">진행 방식</div><div class="ib-val">${methodTxt}</div></div>` : ''}
     </div>
+    ${benefit ? `<div class="hl"><div class="hl-lbl">핵심 내용</div><div class="hl-val">${benefit}</div></div>` : ''}
     ${info.length ? `
     <div class="ds">
-      <div class="ds-title">📌 상세 정보</div>
-      ${info.map(x=>`<div class="ci"><span class="cico">·</span><div><div class="ct">${x.label} · <b>${x.value}</b></div></div></div>`).join('')}
+      <div class="ds-title">📌 자세히 보기</div>
+      <div style="border-top:1px solid var(--border);">
+        ${info.map(x=>`<div style="display:flex;gap:12px;padding:10px 2px;border-bottom:1px solid var(--border);">
+          <div style="flex:0 0 72px;color:var(--text3);font-size:14px;">${x.label}</div>
+          <div style="flex:1;color:var(--text1);font-size:14px;font-weight:600;line-height:1.5;word-break:break-word;">${x.value}</div>
+        </div>`).join('')}
+      </div>
     </div>` : ''}
     ${conds.length ? `
     <div class="ds">
@@ -2372,11 +2421,10 @@ function openDetail(id){
       <div class="ds-title">📋 신청 절차</div>
       ${how.map((h,i)=>`<div class="si"><div class="sn">${i+1}</div><div><div class="st">${h.t||h}</div><div class="sd">${h.d||''}</div></div></div>`).join('')}
     </div>` : ''}
-    ${p.apply_url ? `
     <div style="margin-bottom:20px;">
       <div class="ds-title">🔗 출처</div>
-      <div style="font-size:13px;color:var(--text3);margin-top:8px;">복지로 공식 사이트에서 확인하실 수 있어요.</div>
-    </div>` : ''}
+      <div style="font-size:13px;color:var(--text3);margin-top:8px;line-height:1.6;">${p.region?p.region+' · ':''}공식 포털에서 더 자세한 내용과 첨부파일을 확인할 수 있어요. 아래 '신청하러 가기'로 이동하세요.</div>
+    </div>
   `;
 
   const btn = document.getElementById('a-like');
