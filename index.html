@@ -1232,7 +1232,7 @@ async function loadPolicies(city, district){
 function normalizePolicy(r){
   return {
     id:       r.id,
-    org:      r.org,
+    org:      (r.org||'').split(/\s+/).filter((w,i,a)=> i===0 || w!==a[i-1]).join(' '),
     cat:      r.category,
     title:    r.title,
     desc:     r.benefit_summary,
