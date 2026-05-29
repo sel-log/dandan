@@ -1224,8 +1224,13 @@ async function loadPolicies(city, district){
     console.warn('데이터 로드 실패, 폴백 사용:', e.message);
     DB = [...DB_FALLBACK];
   } finally {
-    // 조회일 기준 3개월 윈도우: 모집중/모집예정/상시 + 최근 90일 내 마감까지 노출 (오래된 마감·부산 과거 데이터 제외)
-    DB = DB.filter(p => typeof p.dday !== 'number' || p.dday >= -90);
+    // 조회일 기준 3개월 윈도우: 마감일(없으면 시작일) 기준 최근 90일 이내 + 미래/상시만 노출.
+    // 시작일만 있고 옛날(2023~2024)인 데이터도 여기서 걸러짐.
+    DB = DB.filter(p => {
+      const r = (typeof p.recencyDday === 'number') ? p.recencyDday
+              : (typeof p.dday === 'number') ? p.dday : 999;
+      return r >= -90;
+    });
     showFeedLoading(false);
     renderFeed();   // result-cnt(총 결과 수)는 renderFeed가 직접 갱신
   }
@@ -1513,6 +1518,8 @@ function normalizePolicy(r){
     bdgs:     buildBadgesFromPolicy(r),
     deadline: formatDeadline(r.apply_end),
     dday:     calcDday(r.apply_end),
+    // 최근성 판단용: 마감일 우선, 없으면 시작일, 둘 다 없으면 999(상시)
+    recencyDday: calcDday(r.apply_end || r.apply_start),
     match:    r.match_score || 80,
     conds:    c.conds,
     info:     c.info,
