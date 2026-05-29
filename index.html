@@ -1229,23 +1229,134 @@ async function loadPolicies(city, district){
 }
 
 // 공통 정규화 함수 (Supabase & 복지로 API 공용)
+/* ═══ 데이터 정제 헬퍼 ═══ */
+// 광역 코드 → 표시 풀네임
+const CITY_FULL = { 서울:'서울특별시', 경기:'경기도', 인천:'인천광역시', 부산:'부산광역시',
+  대구:'대구광역시', 대전:'대전광역시', 광주:'광주광역시', 울산:'울산광역시' };
+
+// 지역명 통일: "광역풀네임 시군구" (구 없으면 광역만)
+function regionLabel(r){
+  const cityRaw = (r.region_city||'').trim();
+  if(!cityRaw) return '';
+  const city = CITY_FULL[cityRaw] || cityRaw;
+  const dist = (r.region_district||'').trim();
+  if(dist && dist!==city && dist!==cityRaw && !/^(전체|전지역|공통|전국|해당없음)$/.test(dist)){
+    return `${city} ${dist}`;
+  }
+  return city;
+}
+
+// 신청방법 enum/원문 → 한글 (알 수 없는 긴 값은 숨김='')
+function formatMethod(raw){
+  if(!raw || raw==='-') return '';
+  const s = String(raw).trim(), low = s.toLowerCase();
+  const on  = low==='online'  || /온라인|인터넷|이메일|누리집|홈페이지|web/i.test(s);
+  const off = low==='offline' || /방문|대면|현장|우편|전화|내방|오프라인/i.test(s);
+  if(low==='both' || (on&&off)) return '온라인·방문';
+  if(on)  return '온라인';
+  if(off) return '방문·대면';
+  return s.length<=24 ? s : '';
+}
+
+// "라벨 값 라벨 값…" 구조 덤프 파싱 (토큰 단위)
+const STRUCT_LABELS = ['센터명','기관명','장소','회기','진행상태','성별','연령별','진행방법','모집인원','참가비','이용료','신청기간','접수기간','문의처','문의','지원대상','지원내용','활동내용','프로그램내용','신청방법'];
+const STRUCT_SET = new Set(STRUCT_LABELS);
+function parseStructured(text){
+  if(!text) return null;
+  const tokens = String(text).replace(/\s+/g,' ').trim().split(' ');
+  const out = {}; let cur=null, buf=[];
+  const flush=()=>{ if(cur && buf.length) out[cur]=(out[cur]?out[cur]+' ':'')+buf.join(' '); buf=[]; };
+  for(const tok of tokens){ if(STRUCT_SET.has(tok)){ flush(); cur=tok; } else buf.push(tok); }
+  flush();
+  return Object.keys(out).length>=2 ? out : null;
+}
+function clip(s,n){ s=(s||'').trim(); return s.length>n ? s.slice(0,n).trim()+'…' : s; }
+const _norm = s => (s||'').replace(/\s/g,'');
+
+// 카드/상세 정제: {summary, benefit, info[], method, conds[], target}
+function cleanContent(r){
+  const title   = (r.title||'').trim();
+  const rawD    = (r.benefit_detail||'').trim();
+  const rawS    = (r.benefit_summary||'').trim();
+  const sD = parseStructured(rawD), sS = parseStructured(rawS);
+  const struct = sD || sS;
+
+  // 핵심 혜택
+  let benefit = '';
+  if(struct) benefit = struct['지원내용']||struct['활동내용']||struct['프로그램내용']||'';
+  if(!benefit){
+    let cand = (rawD && !sD) ? rawD : (rawS && !sS ? rawS : '');
+    if(cand && _norm(cand)!==_norm(title)) benefit = cand;
+  }
+  benefit = clip(benefit, 300);
+
+  // 카드 한 줄 설명
+  let summary = '';
+  if(struct){
+    summary = struct['지원내용']||struct['활동내용']||struct['프로그램내용']||'';
+    if(!summary){
+      const bits=[];
+      if(struct['장소'])    bits.push('📍 '+clip(struct['장소'],24));
+      if(struct['모집인원']) bits.push('👥 '+clip(struct['모집인원'],12));
+      summary = bits.join('   ');
+    }
+  } else if(rawS && _norm(rawS)!==_norm(title)){
+    summary = rawS;
+  }
+  summary = clip(summary, 80);
+
+  // 상세 정보 행
+  const info=[];
+  let target = (r.target_summary||'').trim();
+  if(struct){
+    if(struct['지원대상']) target = clip(struct['지원대상'],60);
+    if(struct['장소'])    info.push({label:'장소',     value:clip(struct['장소'],60)});
+    if(struct['연령별'])  info.push({label:'대상 연령', value:clip(struct['연령별'],40)});
+    if(struct['모집인원']) info.push({label:'모집 인원', value:clip(struct['모집인원'],30)});
+    const fee = struct['참가비']||struct['이용료'];
+    if(fee) info.push({label:'참가비', value:clip(fee,30)});
+    const inq = struct['문의']||struct['문의처'];
+    if(inq) info.push({label:'문의', value:clip(inq,40)});
+  }
+  if(target && target!=='-' && target!=='1인가구' && !info.some(x=>x.label==='대상')){
+    info.unshift({label:'대상', value:clip(target,60)});
+  }
+
+  // 신청방법
+  const method = formatMethod(struct?.['진행방법'] || struct?.['신청방법'] || r.apply_method);
+
+  // 자격조건: 구조화 데이터의 conditions_plain은 오파싱이라 비움. 아니면 짧고 깔끔한 것만.
+  let conds=[];
+  if(!struct){
+    conds = (r.conditions_plain||[])
+      .map(c=>String(c).trim())
+      .filter(c=> c && c.length>=4 && c.length<=50 && _norm(c)!==_norm(title))
+      .slice(0,5).map(c=>({i:'✅',t:c,e:''}));
+  }
+
+  return { summary, benefit, info, method, conds, target: target||'-' };
+}
+
 function normalizePolicy(r){
+  const c = cleanContent(r);
   return {
     id:       r.id,
     org:      (r.org||'').split(/\s+/).filter((w,i,a)=> i===0 || w!==a[i-1]).join(' '),
+    region:   regionLabel(r),
     cat:      r.category,
     title:    r.title,
-    desc:     r.benefit_summary,
-    benefit:  r.benefit_detail || r.benefit_summary,
+    desc:     c.summary,
+    benefit:  c.benefit,
     bdgs:     buildBadgesFromPolicy(r),
     deadline: formatDeadline(r.apply_end),
     dday:     calcDday(r.apply_end),
     match:    r.match_score || 80,
-    conds:    (r.conditions_plain||[]).map(c=>({i:'✅',t:c,e:''})),
+    conds:    c.conds,
+    info:     c.info,
     how:      (r.apply_steps||[]).map(s=>({t:s.title||s,d:s.desc||''})),
     period:   r.apply_end ? '~ '+formatDeadline(r.apply_end) : '상시',
-    method:   r.apply_method || '-',
-    target:   r.target_summary || '-',
+    method:   c.method,
+    target:   c.target,
     apply_url: r.apply_url || null,
   };
 }
@@ -2091,9 +2202,11 @@ const CITY_MAP_SOON = {
 // 광역시·도 드롭다운 옵션 HTML 생성 (서비스 중 + 준비중 구분)
 function _buildCityOptions(){
   const serviceOpts = Object.entries(CITY_MAP)
+    .sort((a,b) => a[1].label.localeCompare(b[1].label,'ko'))
     .map(([v, d]) => `<option value="${v}">${d.label}</option>`)
     .join('');
   const soonOpts = Object.values(CITY_MAP_SOON)
+    .sort((a,b) => a.label.localeCompare(b.label,'ko'))
     .map(d => `<option disabled style="color:var(--text4);">${d.label} (준비 중)</option>`)
     .join('');
   return `<option value="" disabled selected>광역시·도 선택</option>${serviceOpts}${soonOpts}`;
@@ -2110,7 +2223,9 @@ const REGION_SOON_NOTICE = `
   </div>`;
 
 
-function renderFeed(){
+let feedLimit = 10;
+function renderFeed(resetLimit=true){
+  if(resetLimit) feedLimit = 10;
   const list = document.getElementById('feed-list');
   if(!list) return;
   const isExpired = p => typeof p.dday === 'number' && p.dday < 0;
@@ -2123,10 +2238,15 @@ function renderFeed(){
     }
     return b.match - a.match;                      // 추천순
   });
-  list.innerHTML = d.map(p=>renderCard(p)).join('');
-  const cnt = d.length;
-  ['mc','mb'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=cnt; });
+  const total = d.length;
+  const shown = d.slice(0, feedLimit);
+  const moreBtn = total > feedLimit
+    ? `<button onclick="showMore()" style="width:100%;margin:4px 0 20px;padding:15px;border:1.5px solid var(--border);background:var(--white);border-radius:var(--r-lg);color:var(--dandan);font-family:inherit;font-weight:700;font-size:15px;cursor:pointer;">더보기 <span style="color:var(--text3);font-weight:500;">(${total-feedLimit}개 더)</span></button>`
+    : '';
+  list.innerHTML = shown.map(p=>renderCard(p)).join('') + moreBtn;
+  ['mc','mb'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=total; });
 }
+function showMore(){ feedLimit += 10; renderFeed(false); }
 
 function setSort(el,s){
   document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('on'));
@@ -2152,7 +2272,7 @@ function _populateDistricts(cityVal, distSelId, distWrapId, confirmBtnId, notice
     distSel.innerHTML = `<option value="">${lbl} 전체</option>`;
     distSel.className = 'lc-select placeholder';
     if(cd?.districts){
-      cd.districts.forEach(d=>{
+      [...cd.districts].sort((a,b)=>a.localeCompare(b,'ko')).forEach(d=>{
         const o = document.createElement('option');
         o.value = d; o.textContent = d;
         distSel.appendChild(o);
@@ -2198,9 +2318,9 @@ function renderCard(p){
         <button class="hrt${liked.has(sid)?' liked':''}" data-like="${sid}">♥</button>
       </div>
       <div class="pc-body">
-        <div class="pc-org">${p.org||''}</div>
+        <div class="pc-org">${p.region||p.org||''}</div>
         <div class="pc-title">${p.title||''}</div>
-        <div class="pc-desc">${p.desc||p.benefit_summary||''}</div>
+        ${p.desc ? `<div class="pc-desc">${p.desc}</div>` : ''}
       </div>
       <div class="pc-foot">
         <div class="pc-dday ${isUrgent(p)?'urg':''}">📅 ${ddayLabel(p)}</div>
@@ -2225,16 +2345,23 @@ function openDetail(id){
       : (typeof p.dday==='number' && p.dday<0 ? '신청 마감됨' : '상시 모집')}</div>
   `;
 
-  const benefit  = p.benefit || p.benefit_detail || p.desc || p.benefit_summary || '-';
+  const benefit  = p.benefit || '';
   const conds    = p.conds  || [];
+  const info     = p.info   || [];
   const how      = p.how    || [];
+  const methodTxt= p.method || '';
 
   document.getElementById('dt-body').innerHTML = `
-    <div class="hl"><div class="hl-lbl">핵심 혜택</div><div class="hl-val">${benefit}</div></div>
+    ${benefit ? `<div class="hl"><div class="hl-lbl">핵심 혜택</div><div class="hl-val">${benefit}</div></div>` : ''}
     <div class="info-grid">
       <div class="ib"><div class="ib-lbl">신청 기간</div><div class="ib-val">${p.period||'상시'}</div></div>
-      <div class="ib"><div class="ib-lbl">신청 방법</div><div class="ib-val">${p.method||p.apply_method||'-'}</div></div>
+      ${methodTxt ? `<div class="ib"><div class="ib-lbl">신청 방법</div><div class="ib-val">${methodTxt}</div></div>` : ''}
     </div>
+    ${info.length ? `
+    <div class="ds">
+      <div class="ds-title">📌 상세 정보</div>
+      ${info.map(x=>`<div class="ci"><span class="cico">·</span><div><div class="ct">${x.label} · <b>${x.value}</b></div></div></div>`).join('')}
+    </div>` : ''}
     ${conds.length ? `
     <div class="ds">
       <div class="ds-title">✅ 자격 조건</div>
@@ -2242,7 +2369,7 @@ function openDetail(id){
     </div>` : ''}
     ${how.length ? `
     <div class="ds">
-      <div class="ds-title">📋 신청 방법</div>
+      <div class="ds-title">📋 신청 절차</div>
       ${how.map((h,i)=>`<div class="si"><div class="sn">${i+1}</div><div><div class="st">${h.t||h}</div><div class="sd">${h.d||''}</div></div></div>`).join('')}
     </div>` : ''}
     ${p.apply_url ? `
