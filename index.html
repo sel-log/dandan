@@ -728,7 +728,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
       <span class="ti-arr">›</span>
     </div>
     <div class="terms-item" onclick="toggleTerm(2)">
-      <div class="ti-left"><div class="chk" id="chk-2"></div><span>마감 알림 수신 동의<span class="opt">[선택]</span></span></div>
+      <div class="ti-left"><div class="chk" id="chk-2"></div><span>알림 수신 동의<span class="opt">[선택]</span></span></div>
       <span class="ti-arr">›</span>
     </div>
     <div class="terms-item" onclick="toggleTerm(3)">
@@ -993,10 +993,10 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
   WISHLIST
 ══════════════════════════════ -->
 <div class="screen" id="sc-wish">
-  <div class="pg-top"><h2>단단히 챙겨둔 것들</h2><p>마감 3일 전에 꼭 알림 보내드릴게요</p></div>
+  <div class="pg-top"><h2>단단히 챙겨둔 것들</h2><p>관심 있는 혜택을 모아봤어요</p></div>
   <div class="scroll-area has-nav">
     <div class="pg-body" id="wish-body">
-      <div class="empty"><div class="empty-ico">🤍</div><div class="empty-t">아직 챙겨둔 게 없어요</div><div class="empty-s">마음에 드는 걸 하트로 찜하면<br>마감 전에 알려드릴게요.</div></div>
+      <div class="empty"><div class="empty-ico">🤍</div><div class="empty-t">아직 챙겨둔 게 없어요</div><div class="empty-s">마음에 드는 걸 하트로 찜하면<br>여기에 모아둘 수 있어요.</div></div>
     </div>
   </div>
   <div class="bnav">
@@ -1046,14 +1046,6 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
       <!-- 세부 알림 항목 -->
       <div class="edit-section" id="notif-detail-section">
         <div class="edit-label" style="margin-bottom:12px;">알림 종류</div>
-
-        <div class="notif-row">
-          <div class="notif-info">
-            <div class="notif-title">마감 임박 알림</div>
-            <div class="notif-desc">찜한 혜택 마감 3일 전에 알려드려요</div>
-          </div>
-          <button class="notif-toggle" id="toggle-deadline" onclick="toggleNotif('deadline')"></button>
-        </div>
 
         <div class="notif-row">
           <div class="notif-info">
@@ -1962,9 +1954,8 @@ async function confirmNick(){
   }
 
   takenNicks.push(nick);
-  // 약관에서 마감 알림 동의 여부 반영
+  // 약관에서 알림 수신 동의 여부 반영
   notifSettings.push     = terms_[2]; // 알림 수신 동의 [선택]
-  notifSettings.deadline = terms_[2];
   notifSettings.marketing = terms_[3]; // 마케팅 동의 [선택]
   // 프로필 step 없이 바로 완료
   await finishSetup();
@@ -2644,7 +2635,7 @@ function toggleDLike(){
 function toggleLike(id,btn){
   toggleLikeById(id);
   btn.classList.toggle('liked',liked.has(id));
-  if(liked.has(id)) toast('단단히 챙겨뒀어요! ✅ 마감 3일 전 알림 드릴게요.');
+  if(liked.has(id)) toast('단단히 챙겨뒀어요! ✅');
   renderWish();
 }
 function toggleLikeById(id){
@@ -2676,7 +2667,7 @@ function renderWish(){
   const el=document.getElementById('wish-body');
   const arr=DB.filter(p=>liked.has(p.id));
   if(!arr.length){
-    el.innerHTML='<div class="pg-body"><div class="empty"><div class="empty-ico">🤍</div><div class="empty-t">아직 챙겨둔 게 없어요</div><div class="empty-s">마음에 드는 걸 하트로 찜하면<br>마감 전에 알려드릴게요.</div></div></div>';
+    el.innerHTML='<div class="pg-body"><div class="empty"><div class="empty-ico">🤍</div><div class="empty-t">아직 챙겨둔 게 없어요</div><div class="empty-s">마음에 드는 걸 하트로 찜하면<br>여기에 모아둘 수 있어요.</div></div></div>';
     return;
   }
   el.innerHTML='<div class="pg-body"><div style="display:flex;flex-direction:column;gap:12px">'+arr.map(p=>renderCard(p)).join('')+'</div></div>';
@@ -2856,7 +2847,6 @@ function renderMyPage(){
 // 알림 설정 상태
 let notifSettings = {
   push:      false,
-  deadline:  true,
   new:       false,
   marketing: false,
 };
@@ -2864,13 +2854,12 @@ let notifSettings = {
 function openNotifSettings(){
   // Supabase에서 저장된 설정 로드
   if(user?.supabase_uid){
-    supa.from('profiles').select('notif_push,notif_deadline,notif_new,notif_marketing')
+    supa.from('profiles').select('notif_push,notif_new,notif_marketing')
       .eq('id', user.supabase_uid).single()
       .then(({ data }) => {
         if(data){
           notifSettings = {
             push:      data.notif_push      ?? false,
-            deadline:  data.notif_deadline  ?? true,
             new:       data.notif_new       ?? false,
             marketing: data.notif_marketing ?? false,
           };
@@ -2884,14 +2873,14 @@ function openNotifSettings(){
 }
 
 function renderNotifUI(){
-  ['push','deadline','new','marketing'].forEach(key => {
+  ['push','new','marketing'].forEach(key => {
     const el = document.getElementById(`toggle-${key}`);
     if(el) el.className = 'notif-toggle' + (notifSettings[key] ? ' on' : '');
   });
   // 푸시 OFF면 세부 항목 반투명
   const detail = document.getElementById('notif-detail-section');
   if(detail) detail.style.opacity = notifSettings.push ? '1' : '0.45';
-  ['deadline','new','marketing'].forEach(key => {
+  ['new','marketing'].forEach(key => {
     const el = document.getElementById(`toggle-${key}`);
     if(el) el.disabled = !notifSettings.push;
   });
@@ -2906,7 +2895,6 @@ function toggleNotif(key){
   if(user?.supabase_uid){
     const update = {
       notif_push:      notifSettings.push,
-      notif_deadline:  notifSettings.deadline,
       notif_new:       notifSettings.new,
       notif_marketing: notifSettings.marketing,
       updated_at:      new Date().toISOString(),
@@ -2917,7 +2905,6 @@ function toggleNotif(key){
 
   const msgs = {
     push:      notifSettings.push      ? '푸시 알림을 켰어요 🔔' : '푸시 알림을 껐어요',
-    deadline:  notifSettings.deadline  ? '마감 알림을 켰어요 ✅' : '마감 알림을 껐어요',
     new:       notifSettings.new       ? '새 혜택 알림을 켰어요 ✅' : '새 혜택 알림을 껐어요',
     marketing: notifSettings.marketing ? '마케팅 수신에 동의했어요' : '마케팅 수신을 거부했어요',
   };

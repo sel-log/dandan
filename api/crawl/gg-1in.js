@@ -70,12 +70,22 @@ export default async function handler(req, res) {
         const isClosed = item.ADD_COLUMN09 === '마감';  // 마감도 포함(모집중>예정>마감). 3개월 윈도우는 앱에서 필터
 
         const id = `gg1in_${item.GNO2}`;
-        const title = (item.SUBJECT || '').replace(/<[^>]+>/g, '').trim();
+        let title = (item.SUBJECT || '').replace(/<[^>]+>/g, '').trim();
         if (!title) continue;
-        // 1인가구 혜택이 아닌 노이즈 제외 (직원 채용공고·사업 목록 인덱스 글 등)
+        // 1인가구 혜택이 아닌 노이즈 제외 (직원 채용공고·사업 목록 인덱스 글 등) — 원본 제목 기준
         if (/(직원|기간제|계약직|공무직|인턴|상담사|매니저)\s*채용|채용\s*(공고|계획|안내)|채용$|사업\s*목록|사업목록|^목록$|선정\s*결과|합격자\s*발표/.test(title)) continue;
 
         const remark = item.REMARK || '';
+        const remarkText = stripHtml(remark);
+        // 약한 제목((1인가구)·(1인가구) (6월) 등)이면 본문에서 실제 프로그램명을 뽑아 보강 (전체 항목 대상)
+        if (isWeakTitle(title) && remarkText) {
+          const better = deriveTitleFromText(remarkText);
+          if (better && better.length >= 4) {
+            const monthTag = (title.match(/\(\s*\d{1,2}\s*월\s*\)/) || [])[0] || '';
+            title = monthTag ? `${better} ${monthTag}` : better;
+          }
+        }
+
         const dateMatch = remark.match(/신청기간[^\d]*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})[^\d~]*[~～]\s*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})/);
         // 마감일: 신청기간 명시 우선. 없는데 마감이면 작성일을 마감 기준일로(앱의 3개월 윈도우용). 둘 다 없으면 null(상시)
         const apply_end = dateMatch ? parseDate(dateMatch[2])
@@ -92,7 +102,7 @@ export default async function handler(req, res) {
 
         results.push({
           gno2: item.GNO2,
-          remarkText: stripHtml(remark),
+          remarkText,
           policy: {
             id,
             title,
@@ -102,8 +112,8 @@ export default async function handler(req, res) {
             region_city: '경기',
             region_district: district,
             category: mapCategory(title),
-            benefit_summary: stripHtml(remark).slice(0, 200) || title,
-            benefit_detail: stripHtml(remark).slice(0, 500),
+            benefit_summary: remarkText.slice(0, 200) || title,
+            benefit_detail: remarkText.slice(0, 500),
             image_url: extractImageUrl(remark, ORIGIN),
             conditions_plain: parseConditionsFromRemark(remark),
             apply_steps: [],
@@ -208,6 +218,15 @@ function enrichWithDetail(p, detail) {
   if (text && text.length > (p.benefit_detail || '').length) {
     p.benefit_detail = text.slice(0, 4000);
   }
+  // 제목이 카테고리 태그뿐((1인가구) (6월) 등)이면 본문에서 실제 프로그램명을 뽑아 보강
+  if (isWeakTitle(p.title) && text) {
+    const better = deriveTitleFromText(text);
+    if (better && better.length >= 4) {
+      // 월(月) 태그가 있으면 유지해서 "프로그램명 (6월)"처럼
+      const monthTag = (p.title.match(/\(\s*\d{1,2}\s*월\s*\)/) || [])[0] || '';
+      p.title = monthTag ? `${better} ${monthTag}` : better;
+    }
+  }
   if ((!p.benefit_summary || p.benefit_summary === p.title) && text) {
     p.benefit_summary = text.slice(0, 200);
   }
@@ -216,6 +235,23 @@ function enrichWithDetail(p, detail) {
   if (fields.end) p.apply_end = fields.end;
   if (fields.target) p.target_summary = fields.target.slice(0, 80);
   if (fields.method) p.apply_method = fields.method.slice(0, 60);
+}
+
+/** 제목이 카테고리 태그뿐인지: 괄호 그룹·태그어 제거 후 남는 글자가 거의 없으면 약한 제목 */
+function isWeakTitle(title) {
+  const t = (title || '').replace(/\([^)]*\)/g, ' ')        // (1인가구) (6월) 등 괄호 제거
+    .replace(/1인\s*가구|모집|참여자|안내|신청|상시/g, ' ')   // 흔한 태그어 제거
+    .replace(/[\s\d월년~\-–—.]/g, '');                       // 숫자·기호 제거
+  return t.length < 3;
+}
+
+/** 본문 텍스트에서 실제 프로그램명 추출: 앞쪽 이모지/기호 제거 후 첫 일정·라벨·날짜 직전까지 */
+function deriveTitleFromText(text) {
+  if (!text) return '';
+  let t = text.replace(/^[\s\S]*?(?=[가-힣A-Za-z0-9(])/u, '');  // 앞 이모지/공백 제거(첫 글자/괄호까지)
+  const cut = t.search(/📅|📆|🗓|⏰|📍|👤|💸|💰|☎|📞|강의\s*기간|운영\s*기간|교육\s*기간|모집\s*기간|신청\s*기간|운영\s*시간|일\s*정\s*기간|일정\s*[:：]|기간\s*[:：]|\d{4}\s*[.\-]\s*\d{1,2}/u);
+  if (cut > 4) t = t.slice(0, cut);
+  return t.replace(/\s+/g, ' ').trim().replace(/[\s·\-–—:：]+$/u, '').slice(0, 60);
 }
 
 function parseConditionsFromRemark(remark) {
