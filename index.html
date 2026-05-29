@@ -1259,6 +1259,15 @@ function calcDday(dateStr){
   if(!dateStr) return 999;
   return Math.ceil((new Date(dateStr) - new Date()) / (1000*60*60*24));
 }
+// 카드 D-day 라벨: 음수=마감, 0~7=D-N(임박), 그 외=상시/마감일
+function ddayLabel(p){
+  const d = p.dday;
+  if(d == null || d >= 999) return `~ ${p.deadline || '상시'}`;
+  if(d < 0)  return '마감';
+  if(d <= 7) return `D-${d}`;
+  return `~ ${p.deadline || '상시'}`;
+}
+function isUrgent(p){ return typeof p.dday === 'number' && p.dday >= 0 && p.dday <= 7; }
 function buildBadgesFromPolicy(r){
   const badges = [];
   const dday = calcDday(r.apply_end);
@@ -2185,7 +2194,7 @@ function renderCard(p){
         <div class="pc-desc">${p.desc||p.benefit_summary||''}</div>
       </div>
       <div class="pc-foot">
-        <div class="pc-dday ${(p.dday||999)<=7?'urg':''}">📅 ${(p.dday||999)<=7?`D-${p.dday}`:`~ ${p.deadline||'상시'}`}</div>
+        <div class="pc-dday ${isUrgent(p)?'urg':''}">📅 ${ddayLabel(p)}</div>
       </div>
     </div>`;
 }
@@ -2202,9 +2211,9 @@ function openDetail(id){
   document.getElementById('dt-hero').innerHTML = `
     <div class="dt-bdgs">${(p.bdgs||[]).map(b=>`<span class="dt-bdg">${b.t}</span>`).join('')}</div>
     <div class="dt-title">${p.title||''}</div>
-    <div class="dt-dday">${(p.dday||999)<=365 && (p.dday||999)>=0
+    <div class="dt-dday">${(typeof p.dday==='number' && p.dday>=0 && p.dday<=365)
       ? `신청 마감 D-${p.dday} · ${p.deadline||''}`
-      : '상시 모집'}</div>
+      : (typeof p.dday==='number' && p.dday<0 ? '신청 마감됨' : '상시 모집')}</div>
   `;
 
   const benefit  = p.benefit || p.benefit_detail || p.desc || p.benefit_summary || '-';
