@@ -180,7 +180,9 @@ export function extractImageUrl(html, baseOrigin = '') {
   return '';
 }
 
-
+/** 상세 HTML에서 본문 텍스트 추출 (커스텀 정규식 우선, 없으면 일반 콘텐츠 영역) */
+export function extractMainText(html, customRegexes = []) {
+  if (!html) return '';
   const candidates = [
     ...customRegexes,
     /<div[^>]*class="[^"]*(?:bbs|board)[-_]?(?:view|content|cont|detail)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,

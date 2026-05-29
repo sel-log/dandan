@@ -1365,8 +1365,15 @@ function buildFields(raw){
 // 카드/상세 정제: {summary, benefit, info[], method, conds[], target}
 function cleanContent(r){
   const title = decodeEntities((r.title||'').trim());
-  const rawD  = decodeEntities((r.benefit_detail||'').trim());
-  const rawS  = decodeEntities((r.benefit_summary||'').trim());
+  let rawD  = decodeEntities((r.benefit_detail||'').trim());
+  let rawS  = decodeEntities((r.benefit_summary||'').trim());
+  // 이미지 마커 [[IMG:url]] 추출 후 본문에서 제거
+  let imageUrl = (r.image_url || '').trim();
+  const imgM = rawD.match(/\[\[IMG:([^\]]+)\]\]/);
+  if(imgM){ if(!imageUrl) imageUrl = imgM[1].trim(); rawD = rawD.replace(/\[\[IMG:[^\]]+\]\]\s*/,'').trim(); }
+  // 인천 등 리스트 머리말 제거 ("인천 1인가구 통합검색 상세보기")
+  const stripListJunk = t => (t||'').replace(/^(인천\s*1인가구\s*)?(통합검색\s*)?(상세보기\s*)+/,'').trim();
+  rawD = stripListJunk(rawD); rawS = stripListJunk(rawS);
   // 인천 등: benefit_detail이 사이트 네비게이션 boilerplate면 본문으로 쓰지 않음
   const junkD = isBoilerplate(rawD), junkS = isBoilerplate(rawS);
   const pf    = parseFields(rawD) || parseFields(rawS) || {};
@@ -1416,7 +1423,7 @@ function cleanContent(r){
       .slice(0,5).map(c=>({i:'✅',t:c,e:''}));
   }
 
-  return { summary, benefit, info: fields, method, conds, target: target||'-' };
+  return { summary, benefit, info: fields, method, conds, target: target||'-', imageUrl };
 }
 
 function normalizePolicy(r){
@@ -1441,7 +1448,7 @@ function normalizePolicy(r){
     method:   c.method,
     target:   c.target,
     apply_url: fixApplyUrl(r),
-    image:    r.image_url || null,
+    image:    c.imageUrl || r.image_url || null,
   };
 }
 
