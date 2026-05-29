@@ -5,7 +5,7 @@
  */
 
 import {
-  fetchWithRetry, fetchText, upsertPolicies, mapCategory, parseDate,
+  fetchWithRetry, fetchText, upsertPolicies, mapCategory, parseDate, normalizeDistrict,
   stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency,
 } from './_shared.js';
 
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
           ? item.ADD_COLUMN06.trim()
           : `${DETAIL_BASE}?bsIdx=873&menuId=4112&boardIdx=${item.GNO2}`;
 
-        const district = item.WRITER_NAME || null;  // 작성 시군 (백엔드 보존)
+        const district = normalizeDistrict('경기', item.WRITER_NAME);  // 시 단위 정규화 (특례시→시)
 
         results.push({
           gno2: item.GNO2,

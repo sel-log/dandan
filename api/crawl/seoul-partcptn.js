@@ -5,7 +5,7 @@
  */
 
 import {
-  fetchWithRetry, fetchText, upsertPolicies, mapCategory,
+  fetchWithRetry, fetchText, upsertPolicies, mapCategory, normalizeDistrict,
   stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency,
 } from './_shared.js';
 
@@ -85,7 +85,7 @@ function parseSeoulPartcptn(html) {
 
       const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
         .map(m => m[1].replace(/<[^>]+>/g, '').trim());
-      const district = tds[1] || null;
+      const district = normalizeDistrict('서울', tds[1]);  // 자치구 정규화 (서울시/전체 → null)
 
       const periodText = tds[3] || '';
       const endMatch = periodText.match(/~\s*(\d{4}-\d{2}-\d{2})/);

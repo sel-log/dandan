@@ -107,6 +107,33 @@ export function parseDate(str) {
   return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
 }
 
+/**
+ * region_district 정규화 (지침 7-4) — 앱 드롭다운 값과 일치시키기 위함.
+ *  - 특례시 → 시 (수원특례시 → 수원시)
+ *  - 광역명 접두 제거 (서울특별시 마포구 → 마포구)
+ *  - 광역명 자체/전체 → null (광역 공통 혜택)
+ *  - 경기는 시·군 단위로 축약 (성남시 분당구 → 성남시)
+ */
+const WIDE_NAMES = new Set([
+  '서울','서울시','서울특별시','경기','경기도','인천','인천시','인천광역시',
+  '부산','부산시','부산광역시','전체','전국','',
+]);
+export function normalizeDistrict(city, raw) {
+  if (!raw) return null;
+  let d = String(raw).trim().replace(/특례시$/, '시');
+  if (WIDE_NAMES.has(d)) return null;
+
+  // 광역명 접두 제거: '서울특별시 마포구' / '경기도 수원시' → 끝 토큰들
+  d = d.replace(/^(서울특별시|서울시|경기도|인천광역시|부산광역시)\s+/, '').trim();
+
+  // 경기는 시·군 단위까지만 ('성남시 분당구' → '성남시')
+  if (city === '경기') {
+    const m = d.match(/^(\S+?[시군])(?:\s|$)/);
+    if (m) d = m[1];
+  }
+  return WIDE_NAMES.has(d) ? null : d;
+}
+
 /* ═══════════════════════════════════════
    상세 페이지 본문 파싱 (Task 3 공통 유틸)
 ═══════════════════════════════════════ */

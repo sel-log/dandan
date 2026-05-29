@@ -822,12 +822,18 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
         <div class="nick-status" id="edit-nick-status"></div>
       </div>
 
-      <!-- 지역 (광역시·도) -->
+      <!-- 지역 (광역 → 구/시) -->
       <div class="edit-section" style="padding-bottom:8px;">
         <div class="edit-label">지역 <span class="edit-opt">(선택)</span></div>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <div class="lc-select-wrap">
             <select class="lc-select placeholder" id="edit-sel-city" onchange="onEditCityChange(this)">
+            </select>
+            <span class="arr">▾</span>
+          </div>
+          <div class="lc-select-wrap" id="edit-dist-wrap" style="display:none;">
+            <select class="lc-select placeholder" id="edit-sel-district" onchange="this.classList.toggle('placeholder',!this.value)">
+              <option value="">전체</option>
             </select>
             <span class="arr">▾</span>
           </div>
@@ -900,11 +906,17 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
       </div>
     </div>
 
-    <!-- 드롭다운 (광역시·도) -->
+    <!-- 드롭다운 (광역 → 구/시) -->
     <div style="font-size:11px;font-weight:400;color:var(--text4);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;">지역 선택</div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
       <div class="lc-select-wrap">
         <select class="lc-select placeholder" id="loc-sel-city" onchange="onLocCityChange(this)">
+        </select>
+        <span class="arr">▾</span>
+      </div>
+      <div class="lc-select-wrap" id="loc-district-wrap" style="display:none;">
+        <select class="lc-select placeholder" id="loc-sel-district" onchange="onLocDistrictChange(this)">
+          <option value="">전체</option>
         </select>
         <span class="arr">▾</span>
       </div>
@@ -1165,25 +1177,35 @@ let DB = [...DB_FALLBACK];
 ═══════════════════════════════════════ */
 /* ═══════════════════════════════════════
    SUPABASE — 정책 데이터 로드
-   광역시·도(region_city) 단위로만 조회
+   광역(region_city) + 선택 시 하위(region_district) 필터
+   하위 미선택(district=null) → 해당 광역 전체
+   하위 선택 → 그 구/시 OR 광역 공통(region_district is null)
 ═══════════════════════════════════════ */
-async function loadPolicies(city){
+async function loadPolicies(city, district){
   showFeedLoading(true);
   try {
     /* ── 1순위: Supabase (크롤링된 1인가구 맞춤 데이터) ── */
-    const { data: supaData, error } = await supa
+    let q = supa
       .from('policies')
       .select('*')
       .eq('region_city', city)
       .order('match_score', { ascending: false });
 
+    if(district){
+      // 선택한 구/시 OR 광역 공통 혜택(region_district 없음)
+      q = q.or(`region_district.eq.${district},region_district.is.null`);
+    }
+
+    const { data: supaData, error } = await q;
     if(error) console.warn('Supabase 쿼리 오류:', error.message);
 
     if(!error && supaData && supaData.length > 0){
       DB = supaData.map(r => normalizePolicy(r));
     } else {
       /* ── 2순위: Vercel Function → 복지로 API ── */
-      const res  = await fetch(`/api/policies?city=${encodeURIComponent(city)}`);
+      const params = new URLSearchParams({ city });
+      if(district) params.append('district', district);
+      const res  = await fetch(`/api/policies?${params}`);
       const json = await res.json();
 
       if(res.ok && json.success && json.policies?.length > 0){
@@ -1511,6 +1533,8 @@ async function restoreSessionUser(supaUser){
       const cd = CITY_MAP[profile.region_city];
       selectedLocation = {
         city: profile.region_city, cityLabel: cd.label,
+        district: profile.region_district || null,
+        districtLabel: profile.region_district || null,
         portal: cd.portal, portalName: cd.portalName,
       };
     }
@@ -1521,7 +1545,7 @@ async function restoreSessionUser(supaUser){
     hist = hist.filter(h => !['sc-email-auth','sc-auth','sc-terms','sc-nickname'].includes(h));
     if(selectedLocation){
       goTo('sc-feed');
-      loadPolicies(selectedLocation.city);
+      loadPolicies(selectedLocation.city, selectedLocation.district);
       toast(`${user.nickname}님, 다시 오셨군요! 🌱`);
     } else {
       goTo('sc-location');
@@ -1733,24 +1757,31 @@ function openLocationScreen(){
   // pendingLocation이 있으면 미리 세팅 (가입 후 복귀 시)
   const locToShow = selectedLocation || pendingLocation;
   if(locToShow){
-    txt.textContent = locToShow.cityLabel;
+    txt.textContent = locToShow.districtLabel
+      ? locToShow.cityLabel + ' ' + locToShow.districtLabel
+      : locToShow.cityLabel;
     cur.style.display = 'block';
   } else {
     cur.style.display = 'none';
   }
 
   const citySel = document.getElementById('loc-sel-city');
+  const distSel = document.getElementById('loc-sel-district');
   citySel.innerHTML = _buildCityOptions();
 
   // pendingLocation 있으면 드롭다운도 미리 세팅
   if(locToShow && locToShow.city && CITY_MAP[locToShow.city]){
     citySel.value = locToShow.city;
     citySel.className = 'lc-select';
-    _onCityChange(locToShow.city, 'loc-confirm-btn', 'loc-region-notice');
+    _populateDistricts(locToShow.city, 'loc-sel-district', 'loc-district-wrap', 'loc-confirm-btn', 'loc-region-notice');
+    if(locToShow.district && distSel){
+      distSel.value = locToShow.district;
+      distSel.className = 'lc-select';
+    }
   } else {
     citySel.value = '';
     citySel.className = 'lc-select placeholder';
-    document.getElementById('loc-confirm-btn').className = 'btn-primary off';
+    _populateDistricts('', 'loc-sel-district', 'loc-district-wrap', 'loc-confirm-btn', 'loc-region-notice');
   }
 
   // 버튼 텍스트: 비로그인 온보딩 중이면 "다음 →", 로그인 상태면 "이 지역으로 설정하기"
@@ -1763,43 +1794,51 @@ function openLocationScreen(){
 
 function onLocCityChange(sel){
   sel.classList.toggle('placeholder', !sel.value);
-  _onCityChange(sel.value, 'loc-confirm-btn', 'loc-region-notice');
+  _populateDistricts(sel.value, 'loc-sel-district', 'loc-district-wrap', 'loc-confirm-btn', 'loc-region-notice');
 }
+function onLocDistrictChange(sel){ sel.classList.toggle('placeholder', !sel.value); }
 
 /* 피드 인라인 지역 선택 핸들러 (sc-feed 빈 상태) */
 function onFeedCityChange(sel){
   sel.classList.toggle('placeholder', !sel.value);
-  _onCityChange(sel.value, 'feed-confirm-btn', 'feed-region-notice');
+  _populateDistricts(sel.value, 'feed-sel-district', 'feed-district-wrap', 'feed-confirm-btn', 'feed-region-notice');
+}
+function onFeedDistrictChange(sel){ sel.classList.toggle('placeholder', !sel.value); }
+
+// 선택된 광역/하위로 location 객체 생성
+function _buildLoc(city, district){
+  const cd = CITY_MAP[city];
+  return {
+    city, cityLabel: cd.label,
+    district: district || null,
+    districtLabel: district || null,
+    portal: cd.portal, portalName: cd.portalName,
+  };
 }
 
 function confirmFeedLocation(){
   const city = document.getElementById('feed-sel-city')?.value;
   if(!city || !CITY_MAP[city]) return;
-  const cityData = CITY_MAP[city];
+  const district = document.getElementById('feed-sel-district')?.value || null;
+  const loc = _buildLoc(city, district);
 
   if(user){
-    selectedLocation = {
-      city, cityLabel: cityData.label,
-      portal: cityData.portal, portalName: cityData.portalName
-    };
+    selectedLocation = loc;
     saveLocation(selectedLocation);
     refreshFeedResultUI();
-    loadPolicies(city);
+    loadPolicies(city, district);
     toast('📍 지역이 설정됐어요!');
   } else {
     // 비로그인: 로그인 유도
-    showAuthSheet(cityData.label);
+    showAuthSheet(loc.districtLabel ? loc.cityLabel + ' ' + loc.districtLabel : loc.cityLabel);
   }
 }
 
 function confirmLocation(){
   const city = document.getElementById('loc-sel-city').value;
   if(!city || !CITY_MAP[city]) return;
-  const cityData = CITY_MAP[city];
-  const loc = {
-    city, cityLabel: cityData.label,
-    portal: cityData.portal, portalName: cityData.portalName
-  };
+  const district = document.getElementById('loc-sel-district')?.value || null;
+  const loc = _buildLoc(city, district);
 
   if(user){
     // 로그인 상태 → 저장 + 피드로
@@ -1813,7 +1852,7 @@ function confirmLocation(){
         id:              user.supabase_uid,
         nickname:        user.nickname,
         region_city:     city,
-        region_district: null,
+        region_district: district,
         updated_at:      new Date().toISOString(),
       }, { onConflict: 'id' })
       .then(({error})=>{ if(error) console.warn('지역 저장 실패:', error.message); });
@@ -1823,7 +1862,7 @@ function confirmLocation(){
     goTo('sc-feed');
     setTimeout(()=>{
       refreshFeedResultUI();
-      loadPolicies(city);
+      loadPolicies(city, district);
     }, 50);
     toast('📍 지역이 설정됐어요! 혜택을 찾고 있어요 🔍');
   } else {
@@ -1840,7 +1879,7 @@ function clearLocation(){
   document.getElementById('loc-current-display').style.display = 'none';
   document.getElementById('loc-sel-city').value = '';
   document.getElementById('loc-sel-city').className = 'lc-select placeholder';
-  document.getElementById('loc-confirm-btn').className = 'btn-primary off';
+  _populateDistricts('', 'loc-sel-district', 'loc-district-wrap', 'loc-confirm-btn', 'loc-region-notice');
   const notice = document.getElementById('loc-region-notice');
   if(notice) notice.innerHTML = REGION_SOON_NOTICE;
   // 피드도 갱신
@@ -1903,6 +1942,12 @@ function refreshFeedResultUI(){
             </select>
             <span class="arr">▾</span>
           </div>
+          <div class="lc-select-wrap" id="feed-district-wrap" style="display:none;">
+            <select class="lc-select placeholder" id="feed-sel-district" onchange="onFeedDistrictChange(this)">
+              <option value="">전체</option>
+            </select>
+            <span class="arr">▾</span>
+          </div>
         </div>
 
         <button class="btn-primary off" id="feed-confirm-btn" onclick="confirmFeedLocation()">
@@ -1913,7 +1958,9 @@ function refreshFeedResultUI(){
     return;
   }
 
-  const locLabel = selectedLocation.cityLabel;
+  const locLabel = selectedLocation.districtLabel
+    ? selectedLocation.cityLabel + ' ' + selectedLocation.districtLabel
+    : selectedLocation.cityLabel;
 
   if(user){
     // 로그인 + 지역 → 결과 리스트 (배너 없음)
@@ -1974,26 +2021,49 @@ function showAuthSheet(locLabel){
   document.getElementById('app').appendChild(bg);
 }
 function closeAuthSheet(){ document.querySelector('.auth-sheet-bg')?.remove(); }
-// ── 서비스 제공 중인 지역 (광역시·도 단위) ──
-// 시·군·구는 UI에 노출하지 않음 (백엔드 region_district에만 보존)
+// ── 서비스 제공 중인 지역 (광역시·도 + 하위 구/시 캐스케이드) ──
+// districtLabel: 하위 드롭다운 라벨 / districts: 하위 선택지 (선택사항, 미선택 시 광역 전체)
 const CITY_MAP = {
   서울: {
     label: '서울특별시',
+    districtLabel: '자치구',
+    districts: [
+      '종로구','중구','용산구','성동구','광진구','동대문구','중랑구','성북구',
+      '강북구','도봉구','노원구','은평구','서대문구','마포구','양천구','강서구',
+      '구로구','금천구','영등포구','동작구','관악구','서초구','강남구','송파구','강동구',
+    ],
     portal: 'https://1in.seoul.go.kr/front/user/main.do',
     portalName: '씽글벙글 서울'
   },
   경기: {
     label: '경기도',
+    districtLabel: '시·군',
+    districts: [
+      '수원시','용인시','고양시','화성시','성남시','부천시','남양주시','안산시',
+      '평택시','안양시','시흥시','파주시','김포시','의정부시','광주시','하남시',
+      '광명시','군포시','양주시','오산시','이천시','안성시','구리시','의왕시',
+      '포천시','여주시','동두천시','과천시','양평군','가평군','연천군',
+    ],
     portal: 'https://www.gg.go.kr/1ingg/main.do',
     portalName: '경기도 1인가구 포털'
   },
   인천: {
     label: '인천광역시',
+    districtLabel: '군·구',
+    districts: [
+      '중구','동구','미추홀구','연수구','남동구','부평구','계양구','서구',
+      '강화군','옹진군',
+    ],
     portal: 'https://www.incheon.go.kr/1in/OHH020107',
     portalName: '인천 1인가구 포털'
   },
   부산: {
     label: '부산광역시',
+    districtLabel: '군·구',
+    districts: [
+      '중구','서구','동구','영도구','부산진구','동래구','남구','북구',
+      '해운대구','사하구','금정구','강서구','연제구','수영구','사상구','기장군',
+    ],
     portal: 'http://www.busan1.or.kr/',
     portalName: '부산 1인가구 지원센터'
   },
@@ -2049,11 +2119,28 @@ function setSort(el,s){
 }
 
 /* ═══════════════════════════════════════
-   공용 유틸 — 광역시·도 선택 시 확정 버튼/안내 토글
+   공용 유틸 — 광역 선택 시 하위(구/시) 드롭다운 채우기 + 확정버튼/안내 토글
    (onLocCityChange / onEditCityChange / onFeedCityChange 공통)
-   ※ 시·군·구 단위는 UI에 노출하지 않음 (광역 단위로만 운영)
 ═══════════════════════════════════════ */
-function _onCityChange(cityVal, confirmBtnId, noticeId){
+function _populateDistricts(cityVal, distSelId, distWrapId, confirmBtnId, noticeId){
+  const distSel  = distSelId  ? document.getElementById(distSelId)  : null;
+  const distWrap = distWrapId ? document.getElementById(distWrapId) : null;
+  const cd = cityVal ? CITY_MAP[cityVal] : null;
+
+  if(distSel){
+    const lbl = cd?.districtLabel || '시·군·구';
+    distSel.innerHTML = `<option value="">${lbl} 전체</option>`;
+    distSel.className = 'lc-select placeholder';
+    if(cd?.districts){
+      cd.districts.forEach(d=>{
+        const o = document.createElement('option');
+        o.value = d; o.textContent = d;
+        distSel.appendChild(o);
+      });
+    }
+  }
+  if(distWrap) distWrap.style.display = cd ? 'block' : 'none';
+
   if(confirmBtnId){
     const btn = document.getElementById(confirmBtnId);
     if(btn) btn.className = cityVal ? 'btn-primary' : 'btn-primary off';
@@ -2238,8 +2325,9 @@ function openEditProfile(){
   document.getElementById('edit-nick-status').textContent = '';
   editNickValid = true;
 
-  // 지역 (광역시·도)
+  // 지역 (광역 → 구/시)
   const citySel = document.getElementById('edit-sel-city');
+  const distSel = document.getElementById('edit-sel-district');
   citySel.innerHTML = _buildCityOptions();
   citySel.value = '';
   citySel.className = 'lc-select placeholder';
@@ -2248,6 +2336,10 @@ function openEditProfile(){
   if(loc && loc.city && CITY_MAP[loc.city]){
     citySel.value = loc.city;
     citySel.className = 'lc-select';
+    _populateDistricts(loc.city, 'edit-sel-district', 'edit-dist-wrap', null, 'edit-region-notice');
+    if(loc.district && distSel){ distSel.value = loc.district; distSel.className = 'lc-select'; }
+  } else {
+    _populateDistricts('', 'edit-sel-district', 'edit-dist-wrap', null, 'edit-region-notice');
   }
 
   const notice = document.getElementById('edit-region-notice');
@@ -2286,7 +2378,7 @@ function onEditNickInput(v){
 
 function onEditCityChange(sel){
   sel.classList.toggle('placeholder',!sel.value);
-  _onCityChange(sel.value, null, 'edit-region-notice');
+  _populateDistricts(sel.value, 'edit-sel-district', 'edit-dist-wrap', null, 'edit-region-notice');
 }
 
 
@@ -2303,13 +2395,11 @@ function saveEdit(){
     user.nickname = newNick;
   }
 
-  // 지역 (광역시·도)
+  // 지역 (광역 → 구/시)
   const city = document.getElementById('edit-sel-city').value;
+  const district = document.getElementById('edit-sel-district')?.value || null;
   if(city && CITY_MAP[city]){
-    selectedLocation = {
-      city, cityLabel: CITY_MAP[city].label,
-      portal: CITY_MAP[city].portal, portalName: CITY_MAP[city].portalName
-    };
+    selectedLocation = _buildLoc(city, district);
     saveLocation(selectedLocation);
   }
 
@@ -2319,7 +2409,7 @@ function saveEdit(){
       id:              user.supabase_uid,
       nickname:        user.nickname,
       region_city:     selectedLocation?.city || null,
-      region_district: null,
+      region_district: selectedLocation?.district || null,
       updated_at:      new Date().toISOString(),
     }, { onConflict: 'id' })
     .then(({error})=>{ if(error) console.warn('프로필 저장 실패:', error.message); });
@@ -2327,7 +2417,7 @@ function saveEdit(){
 
   goBack();
   refreshFeedUI();
-  if(selectedLocation) loadPolicies(selectedLocation.city);
+  if(selectedLocation) loadPolicies(selectedLocation.city, selectedLocation.district);
   toast('수정됐어요 ✓');
 }
 function renderMyPage(){
@@ -2348,7 +2438,11 @@ function renderMyPage(){
       </div>`;
     return;
   }
-  const regionLabel = selectedLocation ? selectedLocation.cityLabel : null;
+  const regionLabel = selectedLocation
+    ? (selectedLocation.districtLabel
+        ? selectedLocation.cityLabel + ' ' + selectedLocation.districtLabel
+        : selectedLocation.cityLabel)
+    : null;
   const condTags = [regionLabel].filter(Boolean);
 
   el.innerHTML = `
@@ -2554,6 +2648,8 @@ initCitySelects();
             selectedLocation = {
               city:          profile.region_city,
               cityLabel:     cityData.label,
+              district:      profile.region_district || null,
+              districtLabel: profile.region_district || null,
               portal:        cityData.portal,
               portalName:    cityData.portalName,
             };
@@ -2582,7 +2678,7 @@ initCitySelects();
 
   // 지역이 이미 설정돼 있으면 데이터 즉시 로드
   if(user && selectedLocation){
-    loadPolicies(selectedLocation.city);
+    loadPolicies(selectedLocation.city, selectedLocation.district);
   }
 
   // 🛠 dev 모드: 스플래시 건너뛰고 피드로 바로 이동

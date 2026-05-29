@@ -37,7 +37,7 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if(req.method === 'OPTIONS'){ res.status(200).end(); return; }
 
-  const { city, life, theme, page = '1', size = '30' } = req.query;
+  const { city, district, life, theme, page = '1', size = '30' } = req.query;
   const apiKey = process.env.BOKJIRO_API_KEY;
 
   if(!apiKey) return res.status(500).json({ error: 'API 키가 설정되지 않았습니다.' });
@@ -105,16 +105,31 @@ export default async function handler(req, res) {
       return p.ctpvNm.includes(sidoNm) || p.ctpvNm.includes(city);
     });
 
-    // ── 2단계: 1인가구 무관 항목 제외 ──
+    // ── 2단계: 하위 지역(구/시) 필터 (district 선택 시) ──
+    // 복지로는 sggNm이 자주 비어있어 이름 기반으로 처리:
+    //   A) sggNm/org에 선택 구·시 포함 → 통과
+    //   B) sggNm 없음(광역 공통 혜택) → 통과
+    //   C) 다른 구·시가 명시됨 → 제외
+    if(district){
+      filtered = filtered.filter(p => {
+        const sgg = p.region_district || '';
+        const org = p.org || '';
+        if(sgg.includes(district) || org.includes(district)) return true;  // A
+        if(!sgg) return true;                                              // B
+        return false;                                                      // C
+      });
+    }
+
+    // ── 3단계: 1인가구 무관 항목 제외 ──
     filtered = filtered.filter(p => {
       const text = p.title + ' ' + p.benefit_summary;
       return !EXCLUDE_KEYWORDS.some(kw => text.includes(kw));
     });
 
-    // ── 3단계: match_score 내림차순 정렬 ──
+    // ── 4단계: match_score 내림차순 정렬 ──
     filtered.sort((a, b) => b.match_score - a.match_score);
 
-    // 임시 필드(ctpvNm) 제거 후 size만큼 자름
+    // 임시 필드(ctpvNm) 제거 후 size만큼 자름 (region_district는 보존)
     const policies = filtered.slice(0, parseInt(size)).map(({ ctpvNm, ...rest }) => rest);
 
     return res.status(200).json({
@@ -123,6 +138,7 @@ export default async function handler(req, res) {
       page: parseInt(page),
       size: policies.length,
       city,
+      district: district || null,
       policies,
     });
 
