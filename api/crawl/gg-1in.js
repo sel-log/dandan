@@ -33,7 +33,12 @@ export default async function handler(req, res) {
       const body = new URLSearchParams({
         bsIdx: '873',
         menuId: '4112',
+        // 페이지 번호 — 서버가 어떤 이름을 쓰는지 불확실하여 흔한 후보를 모두 전송(서버가 인식하는 것만 사용)
         pageIndex: String(page),
+        pageNo: String(page),
+        currentPageNo: String(page),
+        nowPage: String(page),
+        page: String(page),
         // 페이지 크기를 크게 지정 — 서버가 받아주면 한 번에 전체를 반환(페이지네이션 미동작 대비)
         pageUnit: '500',
         pageSize: '500',
@@ -62,7 +67,7 @@ export default async function handler(req, res) {
       if (page <= 5) pageStats.push({ page, len: list.length, first: list[0]?.GNO2 ?? null });
 
       for (const item of list) {
-        const isClosed = item.ADD_COLUMN09 === '마감';  // 마감도 수집하되 마감 표시(전 시군구 데이터 확보)
+        const isClosed = item.ADD_COLUMN09 === '마감';  // 마감도 포함(모집중>예정>마감). 3개월 윈도우는 앱에서 필터
 
         const id = `gg1in_${item.GNO2}`;
         const title = (item.SUBJECT || '').replace(/<[^>]+>/g, '').trim();
@@ -72,9 +77,9 @@ export default async function handler(req, res) {
 
         const remark = item.REMARK || '';
         const dateMatch = remark.match(/신청기간[^\d]*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})[^\d~]*[~～]\s*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})/);
-        // 신청기간 명시되면 마감일로. 없고 마감 플래그면 작성일(과거)로 마감 처리. 둘 다 없으면 null(상시)
+        // 마감일: 신청기간 명시 우선. 없는데 마감이면 작성일을 마감 기준일로(앱의 3개월 윈도우용). 둘 다 없으면 null(상시)
         const apply_end = dateMatch ? parseDate(dateMatch[2])
-                        : (isClosed ? (parseDate(item.WRITE_DATE2) || '2020-01-01') : null);
+                        : (isClosed ? parseDate(item.WRITE_DATE2) : null);
 
         const apply_url = item.ADD_COLUMN06
           ? item.ADD_COLUMN06.trim()

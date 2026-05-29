@@ -1224,6 +1224,8 @@ async function loadPolicies(city, district){
     console.warn('데이터 로드 실패, 폴백 사용:', e.message);
     DB = [...DB_FALLBACK];
   } finally {
+    // 조회일 기준 3개월 윈도우: 모집중/모집예정/상시 + 최근 90일 내 마감까지 노출 (오래된 마감·부산 과거 데이터 제외)
+    DB = DB.filter(p => typeof p.dday !== 'number' || p.dday >= -90);
     showFeedLoading(false);
     renderFeed();   // result-cnt(총 결과 수)는 renderFeed가 직접 갱신
   }
@@ -1520,7 +1522,18 @@ function normalizePolicy(r){
     target:   c.target,
     apply_url: fixApplyUrl(r),
     image:    c.imageUrl || r.image_url || null,
+    phase:    calcPhase(r.apply_start, r.apply_end),  // 0 모집중/상시, 1 모집예정, 2 마감
   };
+}
+
+// 조회일 기준 단계: end<오늘→2(마감), start>오늘→1(모집예정), 그 외→0(모집중/상시)
+function calcPhase(start, end){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const e = end ? new Date(end) : null;
+  const s = start ? new Date(start) : null;
+  if(e && e < today) return 2;
+  if(s && s > today) return 1;
+  return 0;
 }
 
 /* ── 날짜 헬퍼 ── */
@@ -2369,10 +2382,10 @@ const REGION_SOON_NOTICE = `
 let feedLimit = 10;
 // 상태 단계: 0=접수중(마감일 있음) 1=상시 2=마감
 function statusTier(p){
-  if(typeof p.dday !== 'number') return 1;
-  if(p.dday < 0)    return 2;   // 마감
-  if(p.dday >= 999) return 1;   // 상시
-  return 0;                      // 접수중
+  if(typeof p.phase === 'number') return p.phase;  // 0 모집중/상시 > 1 모집예정 > 2 마감
+  if(typeof p.dday !== 'number') return 0;
+  if(p.dday < 0) return 2;
+  return 0;
 }
 function renderFeed(resetLimit=true){
   if(resetLimit) feedLimit = 10;
@@ -2380,7 +2393,7 @@ function renderFeed(resetLimit=true){
   if(!list) return;
   const selDist = (selectedLocation && selectedLocation.district) ? selectedLocation.district : null;
   const isWide = p => !p.region_district || /^(전체|전지역|전\s*지역|공통|전국|광역)$/.test(String(p.region_district).trim());
-  // 같은 그룹 내 정렬: 접수중>상시>마감, 그 안에서 정렬모드(마감임박/추천)
+  // 같은 그룹 내 정렬: 모집중/상시 > 모집예정 > 마감, 그 안에서 정렬모드(마감임박/추천)
   const within = (a,b)=>{
     const at=statusTier(a), bt=statusTier(b);
     if(at!==bt) return at-bt;
