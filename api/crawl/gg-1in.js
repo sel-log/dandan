@@ -116,11 +116,16 @@ export default async function handler(req, res) {
   });
 
   // ── 상세 본문 크롤링 (Task 3) ──
-  let detailOk = 0;
+  let detailOk = 0, extTried = 0, extOk = 0, ogImg = 0, ogDesc = 0;
   const targets = deduped.slice(0, DETAIL_LIMIT);
   await mapWithConcurrency(targets, DETAIL_CONC, async (r) => {
-    const detail = await fetchDetail(r.gno2, r.policy.apply_url);
-    if (detail) { enrichWithDetail(r.policy, detail); detailOk++; }
+    const d = await fetchDetail(r.gno2, r.policy.apply_url);
+    const g = d._diag;
+    if (g.extTried) extTried++;
+    if (g.extOk)    extOk++;
+    if (g.ogImg)    ogImg++;
+    if (g.ogDesc)   ogDesc++;
+    if (d.text || d.image) { enrichWithDetail(r.policy, d); detailOk++; }
   });
 
   const policies = deduped.map(r => r.policy);
@@ -135,12 +140,18 @@ export default async function handler(req, res) {
     portal: '경기도 1인가구 참여프로그램',
     count: policies.length,
     detail_enriched: detailOk,
+    // 진단: 외부 og 추출이 실제로 동작하는지 가시화
+    ext_tried: extTried, ext_ok: extOk, og_image: ogImg, og_desc: ogDesc,
   });
 }
+
+// 외부 정부 사이트는 봇 UA를 차단하는 경우가 많아 실제 브라우저 UA로 요청
+const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 /** 상세 보강: 내부 게시판(텍스트·이미지) + 외부 목적지 페이지의 og 태그(포스터·요약) */
 async function fetchDetail(gno2, applyUrl) {
   let text = '', image = '', fields = {};
+  const diag = { extTried: false, extOk: false, ogImg: false, ogDesc: false };
   // 1) 내부 게시판 상세
   try {
     const url = `${DETAIL_VIEW}?bsIdx=873&menuId=4112&bIdx=${gno2}`;
@@ -155,17 +166,17 @@ async function fetchDetail(gno2, applyUrl) {
   // 2) 외부 목적지 페이지(ADD_COLUMN06)의 og 태그 — 경기 핵심 보강
   //    (boardView 폴백이 아닌 진짜 외부 링크일 때만)
   if (isExternalUrl(applyUrl)) {
+    diag.extTried = true;
     try {
-      const extHtml = await fetchText(applyUrl, { timeout: 8000 });
+      const extHtml = await fetchText(applyUrl, { timeout: 8000, headers: { 'User-Agent': BROWSER_UA } });
+      diag.extOk = true;
       const og = extractOgTags(extHtml, applyUrl);
-      if (og.image && !image) image = og.image;                 // 포스터 보강
-      if (og.description && og.description.length > text.length) // 더 풍부한 요약이면 교체
-        text = og.description;
+      if (og.image && !image) { image = og.image; diag.ogImg = true; }                 // 포스터 보강
+      if (og.description && og.description.length > text.length) { text = og.description; diag.ogDesc = true; } // 더 풍부한 요약이면 교체
     } catch { /* 외부 차단·타임아웃은 무시 */ }
   }
 
-  if ((!text || text.length < 20) && !image) return null;
-  return { text: text || '', image, fields };
+  return { text: text || '', image, fields, _diag: diag };
 }
 
 /** boardView 내부 폴백이 아닌 외부 목적지 링크인지 */
