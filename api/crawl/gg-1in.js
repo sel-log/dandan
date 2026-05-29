@@ -12,7 +12,8 @@ import {
 const API         = 'https://www.gg.go.kr/1ingg/bbs/ajax/boardList.do';
 const DETAIL_VIEW = 'https://www.gg.go.kr/1ingg/bbs/boardView.do';
 const DETAIL_BASE = 'https://www.gg.go.kr/1ingg/bbs/board.do';
-const MAX_PAGES    = 20;  // 최대 160건 (8개/페이지 × 20)
+const MAX_PAGES    = 60;  // 더 깊이 스캔 (마감 건이 많아 접수중이 뒤 페이지에도 섞임)
+const PAGE_CONC    = 6;   // 목록 페이지 병렬 fetch
 const DETAIL_LIMIT = 80;  // 상세 본문 크롤링 상한 (타임아웃 방지)
 const DETAIL_CONC  = 6;   // 상세 동시 요청 수
 
@@ -22,8 +23,9 @@ export default async function handler(req, res) {
   }
 
   const results = [];
+  const pageNos = Array.from({ length: MAX_PAGES }, (_, i) => i + 1);
 
-  for (let page = 1; page <= MAX_PAGES; page++) {
+  await mapWithConcurrency(pageNos, PAGE_CONC, async (page) => {
     try {
       const body = new URLSearchParams({
         bsIdx: '873',
@@ -49,12 +51,9 @@ export default async function handler(req, res) {
 
       const json = await r.json();
       const list = json.resultList || [];
-      if (!list.length) break;
-
-      const totalPages = json.paginationInfo?.totalPageCount || 1;
 
       for (const item of list) {
-        if (item.ADD_COLUMN09 === '마감') continue;  // 마감 제외
+        if (item.ADD_COLUMN09 === '마감') continue;  // 포털 마감 플래그 제외
 
         const id = `gg1in_${item.GNO2}`;
         const title = (item.SUBJECT || '').replace(/<[^>]+>/g, '').trim();
@@ -62,13 +61,14 @@ export default async function handler(req, res) {
 
         const remark = item.REMARK || '';
         const dateMatch = remark.match(/신청기간[^\d]*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})[^\d~]*[~～]\s*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})/);
-        const apply_end = dateMatch ? parseDate(dateMatch[2]) : parseDate(item.WRITE_DATE2);
+        // 신청기간이 명시된 경우만 마감일로 사용. 없으면 null(상시) — 글 작성일을 마감일로 쓰지 않음
+        const apply_end = dateMatch ? parseDate(dateMatch[2]) : null;
 
         const apply_url = item.ADD_COLUMN06
           ? item.ADD_COLUMN06.trim()
           : `${DETAIL_BASE}?bsIdx=873&menuId=4112&boardIdx=${item.GNO2}`;
 
-        const district = normalizeDistrict('경기', item.WRITER_NAME);  // 시 단위 정규화 (특례시→시)
+        const district = normalizeDistrict('경기', item.WRITER_NAME);
 
         results.push({
           gno2: item.GNO2,
@@ -88,9 +88,9 @@ export default async function handler(req, res) {
             apply_steps: [],
             apply_method: 'both',
             apply_url,
-            apply_start: parseDate(item.WRITE_DATE2),
+            apply_start: dateMatch ? parseDate(dateMatch[1]) : parseDate(item.WRITE_DATE2),
             apply_end,
-            is_recurring: false,
+            is_recurring: !apply_end,
             match_score: calcScore(title),
             target_summary: '1인가구',
             tags: ['1인가구', '경기도', ...(district ? [district] : [])],
@@ -98,13 +98,10 @@ export default async function handler(req, res) {
           },
         });
       }
-
-      if (page >= totalPages) break;
     } catch (e) {
       console.warn(`경기도 1인가구 크롤러 오류 [p${page}]:`, e.message);
-      break;
     }
-  }
+  });
 
   // 같은 배치 내 중복 id 제거
   const seen = new Set();
