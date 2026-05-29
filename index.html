@@ -98,8 +98,6 @@ body{display:flex;justify-content:center;align-items:flex-start;min-height:100vh
 .auth-btns{padding:0 24px 12px;display:flex;flex-direction:column;gap:10px;flex-shrink:0;}
 .btn-kakao{display:flex;align-items:center;justify-content:center;gap:9px;background:#FEE500;color:#1C1C1C;height:54px;padding:0 15px;border-radius:var(--r-md);font-family:inherit;font-size:15px;font-weight:800;border:none;cursor:pointer;transition:filter .12s,transform .1s;width:100%;}
 .btn-kakao:active{transform:scale(.98);filter:brightness(.96);}
-.btn-naver{display:flex;align-items:center;justify-content:center;gap:9px;background:#03C75A;color:#fff;height:54px;padding:0 15px;border-radius:var(--r-md);font-family:inherit;font-size:15px;font-weight:800;border:none;cursor:pointer;width:100%;}
-.btn-naver:active{transform:scale(.98);}
 .auth-or{display:flex;align-items:center;gap:10px;padding:4px 0;}
 .auth-or span{font-size:12px;color:var(--text4);}
 .auth-or::before,.auth-or::after{content:'';flex:1;height:1px;background:var(--border);}
@@ -513,7 +511,28 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 .mi-l{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text1);}
 .mi-ico{font-size:17px;}
 .mi-arr{font-size:15px;color:var(--text4);}
-/* 비로그인 마이페이지 */
+/* 알림 설정 토글 */
+.notif-toggle{
+  width:48px;height:28px;border-radius:14px;border:none;cursor:pointer;
+  background:var(--border);position:relative;flex-shrink:0;
+  transition:background .2s;
+}
+.notif-toggle::after{
+  content:'';position:absolute;width:22px;height:22px;border-radius:50%;
+  background:#fff;top:3px;left:3px;transition:transform .2s;
+  box-shadow:0 1px 4px rgba(0,0,0,.15);
+}
+.notif-toggle.on{background:var(--dandan);}
+.notif-toggle.on::after{transform:translateX(20px);}
+.notif-toggle:disabled{opacity:.4;cursor:not-allowed;}
+
+.notif-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 0;border-bottom:1px solid var(--border);gap:12px;
+}
+.notif-info{flex:1;}
+.notif-title{font-size:14px;font-weight:700;color:var(--text1);margin-bottom:3px;}
+.notif-desc{font-size:12px;color:var(--text3);line-height:1.5;}
 .my-guest{text-align:center;padding:48px 24px;}
 .my-guest-ico{font-size:48px;margin-bottom:16px;}
 .my-guest-title{font-size:18px;font-weight:800;color:var(--text1);letter-spacing:-.02em;margin-bottom:8px;}
@@ -533,7 +552,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 .ag-title{font-size:20px;font-weight:800;color:var(--text1);letter-spacing:-.02em;text-align:center;margin-bottom:8px;}
 .ag-sub{font-size:14px;color:var(--text4);text-align:center;line-height:1.6;margin-bottom:24px;}
 .ag-btns{display:flex;flex-direction:column;gap:9px;}
-.ag-btns .btn-kakao,.ag-btns .btn-naver,.ag-btns .btn-email{justify-content:center;}
+.ag-btns .btn-kakao,.ag-btns .btn-email{justify-content:center;}
 .ag-skip{display:block;text-align:center;padding:12px;font-size:13px;color:var(--text4);background:none;border:none;cursor:pointer;font-family:inherit;}
 
 /* ── SHARE MODAL ── */
@@ -622,7 +641,6 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
     </div>
     <div class="auth-btns">
       <button class="btn-kakao" onclick="startSignup('kakao')"><span style="font-size:18px">💬</span> 카카오로 시작하기</button>
-      <button class="btn-naver" onclick="startSignup('naver')"><span style="font-size:15px;font-weight:900;font-family:monospace">N</span> 네이버로 시작하기</button>
       <div class="auth-or"><span>또는</span></div>
       <button class="btn-email" onclick="startSignup('email')">✉️ 이메일로 시작하기</button>
     </div>
@@ -631,6 +649,60 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
     </div>
   </div>
   <button class="auth-skip" onclick="pendingLocation=null;goTo('sc-feed')">지금은 괜찮아요, 나중에 할게요</button>
+</div>
+
+<!-- ══════════════════════════════
+  EMAIL LOGIN / SIGNUP
+══════════════════════════════ -->
+<div class="screen" id="sc-email-auth">
+  <div class="top-nav" style="background:var(--white);border-bottom:1px solid var(--border);">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <span class="top-nav-title" id="email-auth-nav-title">이메일로 시작하기</span>
+  </div>
+  <div class="scroll-area">
+    <div style="padding:28px 24px 0;">
+
+      <!-- 이메일 입력 -->
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;letter-spacing:.04em;">이메일</div>
+        <input class="nick-input" id="email-input" type="email"
+          placeholder="example@email.com"
+          oninput="onEmailInput()"
+          autocomplete="email" autocapitalize="off">
+        <div class="nick-status" id="email-status"></div>
+      </div>
+
+      <!-- 비밀번호 입력 -->
+      <div style="margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;letter-spacing:.04em;">비밀번호</div>
+        <input class="nick-input" id="pw-input" type="password"
+          placeholder="6자 이상"
+          oninput="onEmailInput()"
+          autocomplete="current-password">
+        <div class="nick-status" id="pw-status"></div>
+      </div>
+
+      <!-- 비밀번호 확인 (가입 시만) -->
+      <div id="pw-confirm-wrap" style="margin-bottom:8px;display:none;">
+        <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;letter-spacing:.04em;">비밀번호 확인</div>
+        <input class="nick-input" id="pw-confirm-input" type="password"
+          placeholder="비밀번호 재입력"
+          oninput="onEmailInput()"
+          autocomplete="new-password">
+        <div class="nick-status" id="pw-confirm-status"></div>
+      </div>
+
+      <div id="email-auth-error" style="font-size:13px;color:#e00;min-height:20px;margin-bottom:8px;"></div>
+    </div>
+  </div>
+  <div style="padding:0 24px 32px;flex-shrink:0;">
+    <button class="btn-primary off" id="email-auth-btn" onclick="submitEmailAuth()">
+      <span id="email-auth-btn-text">시작하기</span>
+    </button>
+    <button id="email-auth-toggle" onclick="toggleEmailAuthMode()"
+      style="width:100%;background:none;border:none;cursor:pointer;font-family:inherit;font-size:13px;color:var(--text3);margin-top:14px;padding:4px;">
+    </button>
+  </div>
 </div>
 
 <!-- ══════════════════════════════
@@ -951,6 +1023,69 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
   </div>
 </div>
 
+<!-- ══════════════════════════════
+  NOTIFY SETTINGS
+══════════════════════════════ -->
+<div class="screen" id="sc-notify">
+  <div class="top-nav">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <span class="top-nav-title">알림 설정</span>
+  </div>
+  <div class="scroll-area" style="padding-bottom:40px;">
+    <div style="padding:20px 20px 0;">
+
+      <!-- 푸시 알림 마스터 스위치 -->
+      <div class="edit-section" style="padding-bottom:4px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 12px;">
+          <div>
+            <div style="font-size:15px;font-weight:800;color:var(--text1);">푸시 알림</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:3px;">모든 알림을 켜거나 끌 수 있어요</div>
+          </div>
+          <button class="notif-toggle" id="toggle-push" onclick="toggleNotif('push')" aria-label="푸시 알림 토글"></button>
+        </div>
+      </div>
+
+      <!-- 세부 알림 항목 -->
+      <div class="edit-section" id="notif-detail-section">
+        <div class="edit-label" style="margin-bottom:12px;">알림 종류</div>
+
+        <div class="notif-row">
+          <div class="notif-info">
+            <div class="notif-title">마감 임박 알림</div>
+            <div class="notif-desc">찜한 혜택 마감 3일 전에 알려드려요</div>
+          </div>
+          <button class="notif-toggle" id="toggle-deadline" onclick="toggleNotif('deadline')"></button>
+        </div>
+
+        <div class="notif-row">
+          <div class="notif-info">
+            <div class="notif-title">새 혜택 알림</div>
+            <div class="notif-desc">내 지역에 새 혜택이 등록되면 알려드려요</div>
+          </div>
+          <button class="notif-toggle" id="toggle-new" onclick="toggleNotif('new')"></button>
+        </div>
+
+        <div class="notif-row" style="border-bottom:none;">
+          <div class="notif-info">
+            <div class="notif-title">마케팅 정보 수신</div>
+            <div class="notif-desc">단단 소식 및 이벤트 안내를 받아요 <span style="font-size:11px;color:var(--text4);">[선택]</span></div>
+          </div>
+          <button class="notif-toggle" id="toggle-marketing" onclick="toggleNotif('marketing')"></button>
+        </div>
+      </div>
+
+      <!-- 수신 동의 안내 -->
+      <div style="margin-top:8px;padding:14px 16px;background:var(--cream);border-radius:var(--r-sm);">
+        <div style="font-size:12px;color:var(--text3);line-height:1.7;">
+          📋 알림은 서비스 이용약관 및 개인정보 처리방침에 따라 발송돼요.<br>
+          마케팅 수신 동의는 언제든지 철회할 수 있어요.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 </div><!-- /app -->
 
 <script>
@@ -970,8 +1105,7 @@ const DB_FALLBACK = [
    benefit:'월 최대 20만원 × 12개월',
    bdgs:[{t:'🔥 마감임박',c:'b-red'},{t:'🏠 주거',c:'b-grn'}],
    deadline:'2025.07.04',dday:3,match:98,
-   conds:[{i:'🎂',t:'만 19~34세 청년',e:'내 나이가 딱 해당돼요!'},
-          {i:'💰',t:'기준 중위소득 120% 이하',e:'혼자 살며 월 소득 약 265만원 이하면 OK'},
+   conds:[{i:'💰',t:'기준 중위소득 120% 이하',e:'혼자 살며 월 소득 약 265만원 이하면 OK'},
           {i:'🏠',t:'임차 보증금 5천만원 이하·월세 60만원 이하',e:'월세로 혼자 사는 분'},
           {i:'📍',t:'서울시 거주 무주택자',e:'서울에서 내 집 없이 사는 분'}],
    how:[{t:'온라인 신청',d:'서울시 복지포털 → 공공서비스 → 청년월세지원'},
@@ -1259,7 +1393,6 @@ function showAuthGate(pendingRegion){
       <div class="ag-sub">가입하면 ${pendingRegion} 맞춤 혜택을<br>딱 골라서 보여드릴게요.</div>
       <div class="ag-btns">
         <button class="btn-kakao" onclick="closeGate();startSignup('kakao')"><span style="font-size:17px">💬</span> 카카오로 시작하기</button>
-        <button class="btn-naver" onclick="closeGate();startSignup('naver')"><span style="font-size:14px;font-weight:900;font-family:monospace">N</span> 네이버로 시작하기</button>
         <button class="btn-email" onclick="closeGate();startSignup('email')">✉️ 이메일로 시작하기</button>
       </div>
       <button class="ag-skip" onclick="closeGate()">지금은 괜찮아요</button>
@@ -1272,9 +1405,174 @@ function closeGate(){ document.querySelector('.auth-gate-bg')?.remove(); }
 
 function startSignup(provider){
   pendingProvider = provider;
-  // 약관 → 닉네임 → 프로필
+  if(provider === 'email'){
+    // 이메일은 별도 화면으로
+    emailAuthMode = 'signup'; // 기본 가입 모드
+    initEmailAuthScreen('signup');
+    goTo('sc-email-auth');
+    return;
+  }
+  if(provider === 'kakao'){
+    // 카카오 OAuth — Supabase signInWithOAuth
+    loginWithKakao();
+    return;
+  }
+  // 그 외: 약관 → 닉네임
   resetTerms();
   goTo('sc-terms');
+}
+
+/* ── 카카오 OAuth ── */
+async function loginWithKakao(){
+  try {
+    const { error } = await supa.auth.signInWithOAuth({
+      provider: 'kakao',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname,
+        scopes: 'profile_nickname',
+      }
+    });
+    if(error) throw error;
+    // Supabase가 카카오 페이지로 리다이렉트함
+  } catch(e) {
+    toast('카카오 로그인에 실패했어요. 잠시 후 다시 시도해주세요.');
+    console.warn('카카오 로그인 실패:', e.message);
+  }
+}
+
+/* ── 이메일 인증 ── */
+let emailAuthMode = 'signup'; // 'signup' | 'login'
+
+function initEmailAuthScreen(mode){
+  emailAuthMode = mode;
+  const isSignup = mode === 'signup';
+  document.getElementById('email-auth-nav-title').textContent = isSignup ? '이메일로 가입하기' : '이메일로 로그인';
+  document.getElementById('email-auth-btn-text').textContent  = isSignup ? '가입하기' : '로그인';
+  document.getElementById('email-auth-toggle').textContent    = isSignup ? '이미 계정이 있어요 → 로그인' : '계정이 없어요 → 가입하기';
+  document.getElementById('pw-confirm-wrap').style.display    = isSignup ? 'block' : 'none';
+  document.getElementById('email-auth-error').textContent     = '';
+  document.getElementById('email-auth-btn').className         = 'btn-primary off';
+  ['email-input','pw-input','pw-confirm-input'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el){ el.value = ''; el.className = 'nick-input'; }
+  });
+  ['email-status','pw-status','pw-confirm-status'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = '';
+  });
+}
+
+function toggleEmailAuthMode(){
+  initEmailAuthScreen(emailAuthMode === 'signup' ? 'login' : 'signup');
+}
+
+function onEmailInput(){
+  const email = document.getElementById('email-input').value.trim();
+  const pw    = document.getElementById('pw-input').value;
+  const pwc   = document.getElementById('pw-confirm-input').value;
+  const isSignup = emailAuthMode === 'signup';
+
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const pwOk    = pw.length >= 6;
+  const pwcOk   = !isSignup || pw === pwc;
+
+  document.getElementById('email-auth-btn').className =
+    (emailOk && pwOk && pwcOk) ? 'btn-primary' : 'btn-primary off';
+
+  if(isSignup && pwc.length > 0){
+    const st = document.getElementById('pw-confirm-status');
+    st.textContent = pwcOk ? '비밀번호가 일치해요 ✓' : '비밀번호가 다릅니다';
+    st.className   = 'nick-status ' + (pwcOk ? 'ok' : 'err');
+  }
+}
+
+async function submitEmailAuth(){
+  const email = document.getElementById('email-input').value.trim();
+  const pw    = document.getElementById('pw-input').value;
+  const errEl = document.getElementById('email-auth-error');
+  const btn   = document.getElementById('email-auth-btn');
+
+  if(btn.classList.contains('off')) return;
+  btn.disabled = true;
+  btn.textContent = '처리 중…';
+  errEl.textContent = '';
+
+  try {
+    if(emailAuthMode === 'signup'){
+      const { data, error } = await supa.auth.signUp({ email, password: pw });
+      if(error) throw error;
+      if(data.user && !data.session){
+        // 이메일 확인 필요
+        toast('📧 인증 메일을 보냈어요. 확인 후 로그인해주세요.');
+        initEmailAuthScreen('login');
+        btn.disabled = false;
+        document.getElementById('email-auth-btn-text').textContent = '로그인';
+        return;
+      }
+      // 바로 세션 생성된 경우 (이메일 확인 불필요 설정)
+      user = { nickname: null, provider: 'email', supabase_uid: data.user.id };
+      pendingProvider = 'email';
+      resetTerms();
+      goTo('sc-terms');
+    } else {
+      // 로그인
+      const { data, error } = await supa.auth.signInWithPassword({ email, password: pw });
+      if(error) throw error;
+      await restoreSessionUser(data.user);
+    }
+  } catch(e) {
+    const msg = e.message.includes('Invalid login') ? '이메일 또는 비밀번호가 틀렸어요'
+              : e.message.includes('already registered') ? '이미 가입된 이메일이에요 → 로그인해주세요'
+              : e.message.includes('Email not confirmed') ? '이메일 인증이 필요해요. 받은 메일함을 확인해주세요'
+              : '오류가 발생했어요. 다시 시도해주세요.';
+    errEl.textContent = msg;
+  } finally {
+    btn.disabled = false;
+    document.getElementById('email-auth-btn-text').textContent =
+      emailAuthMode === 'signup' ? '가입하기' : '로그인';
+  }
+}
+
+/* 로그인 후 기존 세션에서 유저 복원 */
+async function restoreSessionUser(supaUser){
+  const { data: profile } = await supa.from('profiles')
+    .select('*').eq('id', supaUser.id).single();
+
+  if(profile?.nickname){
+    user = {
+      nickname:     profile.nickname,
+      provider:     profile.provider || 'email',
+      supabase_uid: supaUser.id,
+    };
+    if(profile.region_city && CITY_MAP[profile.region_city]){
+      const cd = CITY_MAP[profile.region_city];
+      selectedLocation = {
+        city: profile.region_city, cityLabel: cd.label,
+        district: profile.region_district || null,
+        districtLabel: profile.region_district || null,
+        portal: cd.portal, portalName: cd.portalName,
+      };
+    }
+    // 찜 복원
+    const { data: wishes } = await supa.from('wishes').select('policy_id').eq('user_id', supaUser.id);
+    if(wishes) wishes.forEach(w => liked.add(w.policy_id));
+    refreshFeedUI();
+    hist = hist.filter(h => !['sc-email-auth','sc-auth','sc-terms','sc-nickname'].includes(h));
+    if(selectedLocation){
+      goTo('sc-feed');
+      loadPolicies(selectedLocation.city, selectedLocation.district);
+      toast(`${user.nickname}님, 다시 오셨군요! 🌱`);
+    } else {
+      goTo('sc-location');
+      toast(`${user.nickname}님, 반가워요! 우리 동네를 설정해볼까요? 📍`);
+    }
+  } else {
+    // 프로필 없으면 닉네임 설정으로
+    user = { nickname: null, provider: 'email', supabase_uid: supaUser.id };
+    pendingProvider = 'email';
+    resetTerms();
+    goTo('sc-terms');
+  }
 }
 
 /* ═══════════════════════════════════════
@@ -1366,6 +1664,10 @@ async function confirmNick(){
   }
 
   takenNicks.push(nick);
+  // 약관에서 마감 알림 동의 여부 반영
+  notifSettings.push     = terms_[2]; // 알림 수신 동의 [선택]
+  notifSettings.deadline = terms_[2];
+  notifSettings.marketing = terms_[3]; // 마케팅 동의 [선택]
   // 프로필 step 없이 바로 완료
   await finishSetup();
 }
@@ -1755,9 +2057,6 @@ function showAuthSheet(locLabel){
         <button class="btn-kakao" onclick="closeAuthSheet();startSignup('kakao')">
           <span style="font-size:17px">💬</span> 카카오로 시작하기
         </button>
-        <button class="btn-naver" onclick="closeAuthSheet();startSignup('naver')">
-          <span style="font-size:14px;font-weight:900;font-family:monospace">N</span> 네이버로 시작하기
-        </button>
         <button class="btn-email" onclick="closeAuthSheet();startSignup('email')">
           ✉️ 이메일로 시작하기
         </button>
@@ -1976,8 +2275,14 @@ function openDetail(id){
 function applyNow(){
   const btn = document.getElementById('a-apply-btn');
   const url = btn?.dataset.url;
-  if(url) window.open(url, '_blank');
-  else toast('신청 링크가 준비되지 않았어요');
+  if(url){
+    window.open(url, '_blank');
+  } else {
+    // URL 없으면 복지로에서 제목 검색
+    const title = document.getElementById('dt-lbl')?.textContent || '';
+    const searchUrl = `https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?searchTerm=${encodeURIComponent(title)}`;
+    window.open(searchUrl, '_blank');
+  }
 }
 
 function toggleDLike(){
@@ -2200,11 +2505,82 @@ function renderMyPage(){
       </div>
       <div class="my-card">
         <div class="mi" onclick="goTo('sc-wish')"><div class="mi-l"><span class="mi-ico">🤍</span> 단단히 챙겨둔 것들</div><span class="mi-arr">›</span></div>
-        <div class="mi" onclick="toast('알림 설정 (준비 중)')"><div class="mi-l"><span class="mi-ico">🔔</span> 알림 설정</div><span class="mi-arr">›</span></div>
+        <div class="mi" onclick="openNotifSettings()"><div class="mi-l"><span class="mi-ico">🔔</span> 알림 설정</div><span class="mi-arr">›</span></div>
         <div class="mi" onclick="toast('개인정보 처리방침')"><div class="mi-l"><span class="mi-ico">🔒</span> 개인정보 처리방침</div><span class="mi-arr">›</span></div>
         <div class="mi" onclick="logout()"><div class="mi-l"><span class="mi-ico">🚪</span> 로그아웃</div><span class="mi-arr">›</span></div>
       </div>
     </div>`;
+}
+
+// 알림 설정 상태
+let notifSettings = {
+  push:      false,
+  deadline:  true,
+  new:       false,
+  marketing: false,
+};
+
+function openNotifSettings(){
+  // Supabase에서 저장된 설정 로드
+  if(user?.supabase_uid){
+    supa.from('profiles').select('notif_push,notif_deadline,notif_new,notif_marketing')
+      .eq('id', user.supabase_uid).single()
+      .then(({ data }) => {
+        if(data){
+          notifSettings = {
+            push:      data.notif_push      ?? false,
+            deadline:  data.notif_deadline  ?? true,
+            new:       data.notif_new       ?? false,
+            marketing: data.notif_marketing ?? false,
+          };
+        }
+        renderNotifUI();
+      });
+  } else {
+    renderNotifUI();
+  }
+  goTo('sc-notify');
+}
+
+function renderNotifUI(){
+  ['push','deadline','new','marketing'].forEach(key => {
+    const el = document.getElementById(`toggle-${key}`);
+    if(el) el.className = 'notif-toggle' + (notifSettings[key] ? ' on' : '');
+  });
+  // 푸시 OFF면 세부 항목 반투명
+  const detail = document.getElementById('notif-detail-section');
+  if(detail) detail.style.opacity = notifSettings.push ? '1' : '0.45';
+  ['deadline','new','marketing'].forEach(key => {
+    const el = document.getElementById(`toggle-${key}`);
+    if(el) el.disabled = !notifSettings.push;
+  });
+}
+
+function toggleNotif(key){
+  if(key !== 'push' && !notifSettings.push) return;
+  notifSettings[key] = !notifSettings[key];
+  renderNotifUI();
+
+  // Supabase 저장
+  if(user?.supabase_uid){
+    const update = {
+      notif_push:      notifSettings.push,
+      notif_deadline:  notifSettings.deadline,
+      notif_new:       notifSettings.new,
+      notif_marketing: notifSettings.marketing,
+      updated_at:      new Date().toISOString(),
+    };
+    supa.from('profiles').upsert({ id: user.supabase_uid, ...update }, { onConflict: 'id' })
+      .then(({ error }) => { if(error) console.warn('알림 설정 저장 실패:', error.message); });
+  }
+
+  const msgs = {
+    push:      notifSettings.push      ? '푸시 알림을 켰어요 🔔' : '푸시 알림을 껐어요',
+    deadline:  notifSettings.deadline  ? '마감 알림을 켰어요 ✅' : '마감 알림을 껐어요',
+    new:       notifSettings.new       ? '새 혜택 알림을 켰어요 ✅' : '새 혜택 알림을 껐어요',
+    marketing: notifSettings.marketing ? '마케팅 수신에 동의했어요' : '마케팅 수신을 거부했어요',
+  };
+  toast(msgs[key]);
 }
 
 async function logout(){
@@ -2224,7 +2600,7 @@ async function logout(){
 function showShare(){
   const bg=document.createElement('div');
   bg.className='modal-bg';
-  bg.innerHTML=`<div class="modal-sh"><div class="m-handle"></div><div class="m-title">나만 알기엔 너무 좋은 정보죠.</div><div class="m-copy">친구에게도 <em>단단</em> 공유하기 →</div><div class="share-btns"><button class="share-btn" onclick="closeShare();toast('카카오톡으로 공유했어요 📤')"><span class="sico">💬</span>카카오톡</button><button class="share-btn" onclick="closeShare();toast('링크가 복사되었습니다 ✓')"><span class="sico">🔗</span>링크 복사</button></div></div>`;
+  bg.innerHTML=`<div class="modal-sh"><div class="m-handle"></div><div class="m-title">나만 알기엔 너무 좋은 정보죠.</div><div class="share-btns"><button class="share-btn" onclick="closeShare();toast('카카오톡으로 공유했어요 📤')"><span class="sico">💬</span>카카오톡</button><button class="share-btn" onclick="closeShare();toast('링크가 복사되었습니다 ✓')"><span class="sico">🔗</span>링크 복사</button></div></div>`;
   bg.addEventListener('click',e=>{if(e.target===bg)closeShare();});
   document.getElementById('app').appendChild(bg);
 }
@@ -2301,6 +2677,13 @@ initCitySelects();
   }
 
   refreshFeedUI();
+
+  // OAuth 리다이렉트 후 세션 처리 (카카오 로그인 완료 시)
+  supa.auth.onAuthStateChange(async (event, session) => {
+    if((event === 'SIGNED_IN') && session?.user && !user){
+      await restoreSessionUser(session.user);
+    }
+  });
 
   // 지역이 이미 설정돼 있으면 데이터 즉시 로드
   if(user && selectedLocation){
