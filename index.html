@@ -1184,23 +1184,25 @@ let DB = [...DB_FALLBACK];
 async function loadPolicies(city, district){
   showFeedLoading(true);
   try {
-    /* ── 1순위: Supabase (크롤링된 1인가구 맞춤 데이터) ── */
-    let q = supa
+    /* ── 1순위: Supabase (크롤링된 1인가구 맞춤 데이터) ──
+       광역(region_city) 전체를 받아온 뒤, 하위 지역은 클라이언트에서 필터.
+       (.or() + 한국어 값 조합이 환경에 따라 0건을 반환하는 문제 회피) */
+    const { data: supaData, error } = await supa
       .from('policies')
       .select('*')
       .eq('region_city', city)
-      .order('match_score', { ascending: false });
-
-    if(district){
-      // 선택한 구/시 OR 광역 공통 혜택(region_district 없음)
-      q = q.or(`region_district.eq.${district},region_district.is.null`);
-    }
-
-    const { data: supaData, error } = await q;
+      .order('match_score', { ascending: false })
+      .limit(1000);
     if(error) console.warn('Supabase 쿼리 오류:', error.message);
 
-    if(!error && supaData && supaData.length > 0){
-      DB = supaData.map(r => normalizePolicy(r));
+    let rows = (!error && supaData) ? supaData : [];
+    // 하위 선택 시: 그 구/시 OR 광역 공통(region_district 없음)
+    if(district){
+      rows = rows.filter(r => !r.region_district || r.region_district === district);
+    }
+
+    if(rows.length > 0){
+      DB = rows.map(r => normalizePolicy(r));
     } else {
       /* ── 2순위: Vercel Function → 복지로 API ── */
       const params = new URLSearchParams({ city });
