@@ -170,7 +170,7 @@ function extractFieldTable(html) {
 function enrichWithDetail(p, detail) {
   const { text, fields, image } = detail;
   if (image) p.image_url = image;
-  if (text) p.benefit_detail = text.slice(0, 1000);
+  if (text) p.benefit_detail = text.slice(0, 4000);
   if (!p.benefit_summary || p.benefit_summary === p.title) p.benefit_summary = text.slice(0, 200);
   const conds = textToConditions(text);
   if (conds.length) p.conditions_plain = conds;

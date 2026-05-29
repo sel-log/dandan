@@ -1404,11 +1404,10 @@ function buildFields(raw){
     if(!canon || std[canon]) continue;
     let val = v.replace(/지도\s*보기|바로\s*가기/g,'').replace(/\s+/g,' ').trim();
     if(canon==='진행 방식') val = formatMethod(val) || val;
-    if(canon==='신청 방법') val = formatMethod(val) || clip(val,48);
+    if(canon==='신청 방법') val = formatMethod(val) || val;
     if(canon==='대상')      val = val.replace(/\s*\/\s*성별무관/,'').trim();
     if(/^(성별무관|성별\s*무관|연령무관|연령\s*무관|무관|해당없음|없음|미정|-|0)$/.test(val)) continue;
-    const lim = canon==='문의'?40 : canon==='장소'?44 : (canon==='일시'||canon==='신청 방법')?48 : canon==='대상'?50 : 36;
-    std[canon] = clip(val, lim);
+    std[canon] = clip(val, 2000);   // 줄이지 않고 전체 노출(상세 영역이 유동적으로 늘어남) — 비정상 길이만 안전 컷
   }
   return FIELD_ORDER.filter(f=>std[f]).map(f=>({label:f, value:std[f]}));
 }
@@ -1442,13 +1441,15 @@ function cleanContent(r){
   let benefit = pf['지원내용']||pf['활동내용']||pf['프로그램내용']||pf['내용']||pf['안내']||'';
   if(!benefit && pf['_intro'] && _norm(pf['_intro'])!==_norm(title) && !junkD) benefit = pf['_intro'];
   if(!structured && !benefit && rawS && _norm(rawS)!==_norm(title) && !junkS) benefit = rawS;
+  // 폴백: 구조 라벨이 없어도 본문 텍스트가 남아있으면(제목과 다르고 boilerplate 아니면) 그대로 핵심내용으로
+  if(!structured && !benefit && rawD && _norm(rawD)!==_norm(title) && !junkD) benefit = rawD;
   if(isBoilerplate(benefit)) benefit = '';
   // 인천 등 접두 노이즈 제거 ("인천 1인가구 통합검색 상세보기 …")
   benefit = benefit
     .replace(/^[\s·]*((인천|서울|경기|부산)?\s*1인가구\s*)?통합검색\s*(상세보기)?\s*/,'')
     .replace(/^[\s·]*상세\s*보기\s*/,'')
     .replace(/\s+/g,' ').trim();
-  benefit = clip(benefit, 320);
+  benefit = clip(benefit, 800);
 
   // 카드 한 줄 설명: 본문 우선, 없으면 모집인원·참가비 요약(지역은 이미 상단 표시)
   let summary = benefit;
@@ -2367,21 +2368,32 @@ function renderFeed(resetLimit=true){
   if(resetLimit) feedLimit = 10;
   const list = document.getElementById('feed-list');
   if(!list) return;
-  // 광역만 선택(시·군 미지정) → 전체지역 사업 먼저, 그 안에서 접수중, 그 안에서 마감 빠른 순
+  const selDist = (selectedLocation && selectedLocation.district) ? selectedLocation.district : null;
   const isWide = p => !p.region_district || /^(전체|전지역|전\s*지역|공통|전국|광역)$/.test(String(p.region_district).trim());
+  // 같은 그룹 내 정렬: 접수중>상시>마감, 그 안에서 정렬모드(마감임박/추천)
+  const within = (a,b)=>{
+    const at=statusTier(a), bt=statusTier(b);
+    if(at!==bt) return at-bt;
+    if(sortMode==='deadline'){ if(at===2) return b.dday-a.dday; return a.dday-b.dday; }
+    return b.match - a.match;
+  };
   let d = [...DB].sort((a,b)=>{
-    // 1) 전체 지역에 다 해당하는 사업 먼저 (특정 시·군 전용은 뒤로)
-    const aw = isWide(a) ? 0 : 1, bw = isWide(b) ? 0 : 1;
-    if(aw !== bw) return aw - bw;
-    // 2) 접수중 > 상시 > 마감
-    const at = statusTier(a), bt = statusTier(b);
-    if(at !== bt) return at - bt;
-    // 3) 같은 단계 내 정렬
-    if(sortMode==='deadline'){
-      if(at===2) return b.dday - a.dday;   // 마감: 최근 마감 먼저
-      return a.dday - b.dday;               // 접수중·상시: 마감 가까운 순
+    if(selDist){
+      // 시군구 선택: 선택 시군구 → 광역 공통(전체) → 기타
+      const ga = (String(a.region_district||'').trim()===selDist)?0:(isWide(a)?1:2);
+      const gb = (String(b.region_district||'').trim()===selDist)?0:(isWide(b)?1:2);
+      if(ga!==gb) return ga-gb;
+      return within(a,b);
+    } else {
+      // 광역만: 전체 먼저 → 시군구 가나다순 → (그룹 내) 모집중
+      const aw = isWide(a)?0:1, bw = isWide(b)?0:1;
+      if(aw!==bw) return aw-bw;
+      if(aw===1){
+        const cmp = String(a.region_district||'').localeCompare(String(b.region_district||''),'ko');
+        if(cmp!==0) return cmp;
+      }
+      return within(a,b);
     }
-    return b.match - a.match;               // 추천순
   });
   const total = d.length;
   const shown = d.slice(0, feedLimit);

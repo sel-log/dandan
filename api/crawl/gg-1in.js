@@ -71,7 +71,10 @@ export default async function handler(req, res) {
           ? item.ADD_COLUMN06.trim()
           : `${DETAIL_VIEW}?bsIdx=873&menuId=4112&bIdx=${item.GNO2}`;
 
-        const district = normalizeDistrict('경기', item.WRITER_NAME);
+        // 시군구: 작성자명(가족센터) 우선, 없으면 제목의 [○○시가족센터]/[○○구] 표기에서 추출
+        const titleBracket = (title.match(/\[([^\]]*[시군구])[^\]]*\]/) || [])[1] || null;
+        const district = normalizeDistrict('경기', item.WRITER_NAME)
+                      || normalizeDistrict('경기', titleBracket);
 
         results.push({
           gno2: item.GNO2,
@@ -173,7 +176,7 @@ function enrichWithDetail(p, detail) {
   const { text, fields, image } = detail;
   if (image && !p.image_url) p.image_url = image;
   if (text && text.length > (p.benefit_detail || '').length) {
-    p.benefit_detail = text.slice(0, 1000);
+    p.benefit_detail = text.slice(0, 4000);
   }
   if ((!p.benefit_summary || p.benefit_summary === p.title) && text) {
     p.benefit_summary = text.slice(0, 200);
