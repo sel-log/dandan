@@ -2261,16 +2261,6 @@ const CITY_MAP = {
     portal: 'https://www.gg.go.kr/1ingg/main.do',
     portalName: '경기도 1인가구 포털'
   },
-  인천: {
-    label: '인천광역시',
-    districtLabel: '군·구',
-    districts: [
-      '중구','동구','미추홀구','연수구','남동구','부평구','계양구','서구',
-      '강화군','옹진군',
-    ],
-    portal: 'https://www.incheon.go.kr/1in/OHH020107',
-    portalName: '인천 1인가구 포털'
-  },
   부산: {
     label: '부산광역시',
     districtLabel: '군·구',
@@ -2283,13 +2273,8 @@ const CITY_MAP = {
   },
 };
 
-// ── 준비 중인 지역 (확장 로드맵) ──
-const CITY_MAP_SOON = {
-  대구: { label: '대구광역시' },
-  대전: { label: '대전광역시' },
-  광주: { label: '광주광역시' },
-  울산: { label: '울산광역시' },
-};
+// ── 준비 중인 지역 (MVP에서는 노출 안 함) ──
+const CITY_MAP_SOON = {};
 
 // 광역시·도 드롭다운 옵션 HTML 생성 (서비스 중 + 준비중 구분)
 function _buildCityOptions(){

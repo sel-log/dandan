@@ -20,7 +20,8 @@ import busanHandler         from './busan.js';
 const CRAWLERS = [
   { name: '서울시 씽글벙글 참여프로그램', handler: seoulPartcptnHandler },
   { name: '경기도 1인가구 참여프로그램',  handler: gg1inHandler },
-  { name: '인천 1인가구 포털',           handler: incheonHandler },
+  // 인천은 MVP에서 일시 제외 (지역 선택지에서도 숨김). 재개 시 아래 주석 해제.
+  // { name: '인천 1인가구 포털',         handler: incheonHandler },
   { name: '부산 1인가구 지원센터',        handler: busanHandler },
 ];
 
