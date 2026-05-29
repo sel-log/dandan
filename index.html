@@ -1423,6 +1423,11 @@ function cleanContent(r){
       .slice(0,5).map(c=>({i:'✅',t:c,e:''}));
   }
 
+  // http 이미지는 https 앱에서 mixed-content로 차단됨 → https 이미지 프록시로 우회 (부산 등)
+  if(imageUrl && /^http:\/\//i.test(imageUrl)){
+    imageUrl = 'https://images.weserv.nl/?url=' + encodeURIComponent(imageUrl.replace(/^http:\/\//i,''));
+  }
+
   return { summary, benefit, info: fields, method, conds, target: target||'-', imageUrl };
 }
 
