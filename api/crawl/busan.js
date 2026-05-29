@@ -1,13 +1,11 @@
 /**
- * 단단 크롤러 — 부산 1인가구 지원센터 (MVP 2)
- * 목록: http://www.busan1.or.kr/  (EUC-KR 인코딩 → _shared.fetchText가 자동 디코딩)
+ * 단단 크롤러 — 부산 1인가구 지원센터 (모여봐요 부산시 1인가구)
+ * 목록: http://www.busan1.or.kr/program_01.html?query=list&page=N  (EUC-KR)
+ * 상세: http://www.busan1.or.kr/program_01.html?query=view&id={id}&page={page}
  *
- * ⚠️ 라이브 보정 필요 (1회)
- *   busan1.or.kr는 게시판 경로가 공개돼 있지 않아, 홈/목록에서
- *   "프로그램 신청" 게시판 링크를 범용으로 긁도록 작성했다.
- *   실제 목록 경로를 확인하면 BOARD_URLS 배열에 추가하면 된다.
- *   수동 실행: /api/crawl/busan?secret=CRON_SECRET → count 확인
- *   파싱 실패 시 count:0으로 정상 종료 (마스터 크롤러 보호).
+ * 사이트가 frameset 구조라 홈(/)이 아니라 program_01.html을 직접 호출해야 목록이 나온다.
+ * 구는 센터명에서 추출 (금정구가족센터 → 금정구).
+ * EUC-KR은 _shared.fetchText가 자동 디코딩.
  */
 
 import {
@@ -16,12 +14,16 @@ import {
 } from './_shared.js';
 
 const ORIGIN = 'http://www.busan1.or.kr';
-// 목록 후보 경로 — 라이브 확인 후 정확한 게시판 URL을 맨 앞에 추가
-const BOARD_URLS = [
-  'http://www.busan1.or.kr/',
-];
-const DETAIL_LIMIT = 40;
+const LIST   = `${ORIGIN}/program_01.html`;
+const MAX_PAGES    = 10;
+const DETAIL_LIMIT = 60;
 const DETAIL_CONC  = 5;
+
+// 부산 군·구 (긴 이름 우선 매칭: 부산진구가 진구보다 먼저)
+const BUSAN_GU = [
+  '해운대구','부산진구','영도구','동래구','사하구','금정구','강서구',
+  '연제구','수영구','사상구','기장군','중구','서구','동구','남구','북구',
+];
 
 export default async function handler(req, res) {
   if (req.headers['x-cron-secret'] !== process.env.CRON_SECRET) {
@@ -29,13 +31,16 @@ export default async function handler(req, res) {
   }
 
   const results = [];
-
-  for (const boardUrl of BOARD_URLS) {
+  for (let page = 1; page <= MAX_PAGES; page++) {
     try {
-      const html = await fetchText(boardUrl, { timeout: 9000 });
-      results.push(...parseBoard(html, boardUrl));
+      const html = await fetchText(`${LIST}?query=list&page=${page}`, { timeout: 9000 });
+      const items = parseList(html, page);
+      if (!items.length) break;
+      results.push(...items);
+      if (items.length < 5) break;  // 마지막 페이지
     } catch (e) {
-      console.warn(`부산 크롤러 오류 [${boardUrl}]:`, e.message);
+      console.warn(`부산 크롤러 오류 [p${page}]:`, e.message);
+      break;
     }
   }
 
@@ -50,89 +55,99 @@ export default async function handler(req, res) {
   // 상세 본문 크롤링
   let detailOk = 0;
   await mapWithConcurrency(deduped.slice(0, DETAIL_LIMIT), DETAIL_CONC, async (p) => {
-    if (!p.apply_url) return;
-    const detail = await fetchDetail(p.apply_url);
+    const detail = await fetchDetail(p._viewUrl);
     if (detail) { enrichWithDetail(p, detail); detailOk++; }
   });
 
-  if (deduped.length) {
-    try { await upsertPolicies(deduped); }
+  const policies = deduped.map(({ _viewUrl, ...rest }) => rest);
+
+  if (policies.length) {
+    try { await upsertPolicies(policies); }
     catch (e) { return res.status(500).json({ error: e.message }); }
   }
 
   return res.status(200).json({
     success: true,
     portal: '부산 1인가구 지원센터',
-    count: deduped.length,
+    count: policies.length,
     detail_enriched: detailOk,
   });
 }
 
-/**
- * 범용 게시판 파서.
- *  1) <tbody><tr> 테이블형이면 행에서 제목 링크 추출
- *  2) 아니면 게시판 view 링크 패턴(bbs/board/view/read + 식별자)을 가진 <a> 수집
- */
-function parseBoard(html, baseUrl) {
+/** 목록 테이블 파싱: 번호 / 센터명 / 프로그램명 / 접수기간 / 진행기간 / 모집인원 / 진행상태 */
+function parseList(html, page) {
   const items = [];
+  const tbody = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
+  const scope = tbody ? tbody[1] : html;
+  const rows  = scope.match(/<tr[\s\S]*?<\/tr>/gi) || [];
 
-  // (1) 테이블형
-  const tbodyMatch = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
-  if (tbodyMatch) {
-    const rows = tbodyMatch[1].match(/<tr[\s\S]*?<\/tr>/gi) || [];
-    for (const row of rows) {
-      const a = row.match(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
-      if (!a) continue;
-      const title = stripHtml(a[2]);
-      if (!title || title.length < 3) continue;
-      const dateMatch = row.match(/\d{4}[.\-]\d{1,2}[.\-]\d{1,2}/);
-      items.push(makePolicy(title, resolveUrl(a[1], baseUrl), dateMatch ? parseDate(dateMatch[0]) : null));
-    }
-    if (items.length) return items;
-  }
+  for (const row of rows) {
+    try {
+      // 상세 id 추출 (href / onclick 양쪽 대응)
+      const idMatch = row.match(/(?:query=view[^"']*?id=|[?&]id=|view\(['"]?)(\d+)/i);
+      if (!idMatch) continue;
+      const id = idMatch[1];
 
-  // (2) 링크 패턴형
-  const anchorRe = /<a[^>]+href="([^"]*(?:bbs|board|view|read|program|notice)[^"]*(?:idx|seq|no|id|wr_id)=[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-  let m;
-  while ((m = anchorRe.exec(html)) !== null) {
-    const title = stripHtml(m[2]);
-    if (!title || title.length < 4) continue;
-    items.push(makePolicy(title, resolveUrl(m[1].replace(/&amp;/g, '&'), baseUrl), null));
+      const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(m => stripHtml(m[1]));
+      if (tds.length < 3) continue;
+
+      const aMatch = row.match(/<a[^>]*>([\s\S]*?)<\/a>/i);
+      const center = tds[1] || '';
+      const title  = (aMatch ? stripHtml(aMatch[1]) : '') || tds[2] || '';
+      if (!title) continue;
+
+      const status = tds[tds.length - 1] || '';
+      if (/마감/.test(status)) continue;  // 접수마감 제외
+
+      const dates = (tds[3] || '').match(/\d{4}[.\-]\d{1,2}[.\-]\d{1,2}/g);
+      const apply_start = dates && dates[0] ? parseDate(dates[0]) : null;
+      const apply_end   = dates && dates.length ? parseDate(dates[dates.length - 1]) : null;
+
+      const gu = extractGu(center) || extractGu(title);
+      const viewUrl = `${LIST}?query=view&id=${id}&page=${page}`;
+
+      items.push({
+        id: `busan_${id}`,
+        title,
+        org: center ? `부산광역시 ${center}` : '부산광역시',
+        org_type: 'local_gov',
+        source_portal: 'http://www.busan1.or.kr/',
+        region_city: '부산',
+        region_district: gu,
+        category: mapCategory(title),
+        benefit_summary: title,
+        benefit_detail: '',
+        conditions_plain: [],
+        apply_steps: [],
+        apply_method: 'both',
+        apply_url: viewUrl,
+        apply_start,
+        apply_end,
+        is_recurring: false,
+        match_score: calcScore(title),
+        target_summary: '1인가구',
+        tags: ['1인가구', '부산', ...(gu ? [gu] : [])],
+        updated_at: new Date().toISOString(),
+        _viewUrl: viewUrl,
+      });
+    } catch { /* skip */ }
   }
   return items;
 }
 
-function makePolicy(title, apply_url, apply_end) {
-  const idKey = (apply_url.match(/(?:idx|seq|no|id|wr_id)=([^&]+)/i) || [])[1] || hashStr(apply_url);
-  return {
-    id: `busan_${idKey}`,
-    title,
-    org: '부산광역시',
-    org_type: 'local_gov',
-    source_portal: 'http://www.busan1.or.kr/',
-    region_city: '부산',
-    region_district: null,
-    category: mapCategory(title),
-    benefit_summary: title,
-    benefit_detail: '',
-    conditions_plain: [],
-    apply_steps: [],
-    apply_method: 'both',
-    apply_url,
-    apply_start: null,
-    apply_end,
-    is_recurring: !apply_end,
-    match_score: calcScore(title),
-    target_summary: '1인가구',
-    tags: ['1인가구', '부산'],
-    updated_at: new Date().toISOString(),
-  };
+/** 센터명/텍스트에서 부산 군·구 추출 (긴 이름 우선) */
+function extractGu(text) {
+  if (!text) return null;
+  for (const g of BUSAN_GU) if (text.includes(g)) return g;
+  return null;
 }
 
 async function fetchDetail(url) {
   try {
-    const html = await fetchText(url, { timeout: 8000 });  // EUC-KR 자동 처리
-    const text = extractMainText(html);
+    const html = await fetchText(url, { timeout: 8000 });  // EUC-KR 자동
+    const text = extractMainText(html, [
+      /<div[^>]*class="[^"]*(?:program_view|view_cont|detail|cont)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
+    ]);
     if (!text || text.length < 30) return null;
     return { text, fields: extractDetailFields(text) };
   } catch { return null; }
@@ -147,18 +162,11 @@ function enrichWithDetail(p, detail) {
   if (fields.end) { p.apply_end = fields.end; p.is_recurring = false; }
   if (fields.target) p.target_summary = fields.target.slice(0, 80);
   if (fields.method) p.apply_method = fields.method.slice(0, 60);
-}
-
-function resolveUrl(href, baseUrl) {
-  if (/^https?:\/\//i.test(href)) return href;
-  if (href.startsWith('/')) return ORIGIN + href;
-  return baseUrl.replace(/\/[^/]*$/, '/') + href;
-}
-
-function hashStr(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) | 0; }
-  return Math.abs(h).toString(36);
+  // 상세 본문/주소에 구가 있으면 보강 (목록 센터명에서 못 잡았을 때)
+  if (!p.region_district) {
+    const gu = extractGu(text);
+    if (gu) { p.region_district = gu; if (!p.tags.includes(gu)) p.tags.push(gu); }
+  }
 }
 
 function calcScore(title) {

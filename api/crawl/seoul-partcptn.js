@@ -1,7 +1,14 @@
 /**
  * 단단 크롤러 — 서울시 씽글벙글 참여프로그램
- * 목록: https://1in.seoul.go.kr/front/partcptn/partcptnListPage.do (SSR, miv_pageNo)
- * 상세: https://1in.seoul.go.kr/front/partcptn/partcptnView.do?partcptn_id=...
+ * 목록: AJAX 프래그먼트 (partcptnListPage.do는 껍데기, 실제 목록은 별도 호출로 주입)
+ *   → 후보 엔드포인트를 순서대로 시도해 <tr>이 나오는 곳을 자동 선택
+ * 상세: https://1in.seoul.go.kr/front/partcptn/partcptnView.do?partcptn_id={hash}  (SSR)
+ *
+ * 목록 행 구조:
+ *   <td class="num">번호</td>
+ *   <td class="f_b">자치구</td>
+ *   <td class="title_box"><a href="...partcptnView.do?partcptn_id=HASH" class="title">제목</a></td>
+ *   <td>...접수기간 YYYY-MM-DD ~ YYYY-MM-DD</td>
  */
 
 import {
@@ -10,9 +17,13 @@ import {
 } from './_shared.js';
 
 const BASE = 'https://1in.seoul.go.kr';
-const LIST = `${BASE}/front/partcptn/partcptnListPage.do`;
-const MAX_PAGES    = 30;  // 최대 300건 (10개/페이지 × 30)
-const DETAIL_LIMIT = 80;  // 상세 본문 크롤링 상한
+// 목록 프래그먼트 후보 (행이 나오는 첫 엔드포인트를 사용)
+const LIST_ENDPOINTS = [
+  '/front/partcptn/partcptnList.do',
+  '/front/partcptn/partcptnListPage.do',
+];
+const MAX_PAGES    = 30;  // 최대 300건 (최신순이라 진행중 프로그램은 앞쪽에 몰림)
+const DETAIL_LIMIT = 80;
 const DETAIL_CONC  = 6;
 
 export default async function handler(req, res) {
@@ -20,23 +31,34 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: '인증 필요' });
   }
 
-  const results = [];
+  // 1) 행이 나오는 목록 엔드포인트 자동 탐지 (1페이지로 테스트)
+  let endpoint = null;
+  for (const ep of LIST_ENDPOINTS) {
+    try {
+      const html = await fetchText(`${BASE}${ep}?miv_pageNo=1`, { timeout: 9000 });
+      if (parseList(html).length) { endpoint = ep; break; }
+    } catch { /* 다음 후보 */ }
+  }
+  if (!endpoint) {
+    return res.status(200).json({ success: true, portal: '서울시 씽글벙글 참여프로그램', count: 0, note: '목록 엔드포인트 미발견 (AJAX URL 확인 필요)' });
+  }
 
+  // 2) 페이지 순회
+  const results = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
     try {
-      const r = await fetchWithRetry(`${LIST}?miv_pageNo=${page}`);
-      const html = await r.text();
-      const items = parseSeoulPartcptn(html);
+      const html = await fetchText(`${BASE}${endpoint}?miv_pageNo=${page}`, { timeout: 9000 });
+      const items = parseList(html);
       if (!items.length) break;
       results.push(...items);
-      if (items.length < 10) break;  // 마지막 페이지
+      if (items.length < 10) break;
     } catch (e) {
       console.warn(`서울 참여프로그램 크롤러 오류 [p${page}]:`, e.message);
       break;
     }
   }
 
-  // 중복 id 제거
+  // 중복 제거
   const seen = new Set();
   const deduped = results.filter(p => {
     if (seen.has(p.id)) return false;
@@ -44,7 +66,7 @@ export default async function handler(req, res) {
     return true;
   });
 
-  // ── 상세 본문 크롤링 (Task 3) ──
+  // 3) 상세 본문 크롤링
   let detailOk = 0;
   await mapWithConcurrency(deduped.slice(0, DETAIL_LIMIT), DETAIL_CONC, async (p) => {
     const detail = await fetchDetail(p.apply_url);
@@ -59,39 +81,41 @@ export default async function handler(req, res) {
   return res.status(200).json({
     success: true,
     portal: '서울시 씽글벙글 참여프로그램',
+    endpoint,
     count: deduped.length,
     detail_enriched: detailOk,
   });
 }
 
-function parseSeoulPartcptn(html) {
+/** 목록 프래그먼트 파싱 */
+function parseList(html) {
   const items = [];
-  const tbodyMatch = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
-  if (!tbodyMatch) return items;
-
-  const rows = tbodyMatch[1].match(/<tr[\s\S]*?<\/tr>/gi) || [];
+  const tbody = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
+  const scope = tbody ? tbody[1] : html;
+  const rows  = scope.match(/<tr[\s\S]*?<\/tr>/gi) || [];
 
   for (const row of rows) {
     try {
-      const titleLinkMatch = row.match(/<a[^>]+href="(\/front\/partcptn\/partcptnView\.do[^"]*)"[^>]*>([^<]+)<\/a>/);
-      if (!titleLinkMatch) continue;
-
-      const href = titleLinkMatch[1];
-      const apply_url = `${BASE}${href.replace(/&amp;/g, '&')}`;
-      const idMatch = href.match(/partcptn_id=([^&]+)/);
-      const id = `seoul_partcptn_${idMatch?.[1] || Date.now()}`;
-      const title = titleLinkMatch[2].trim();
+      // 제목 + partcptn_id
+      const a = row.match(/<a[^>]+href="(\/front\/partcptn\/partcptnView\.do\?partcptn_id=([^"&]+))"[^>]*>([\s\S]*?)<\/a>/i);
+      if (!a) continue;
+      const apply_url = `${BASE}${a[1].replace(/&amp;/g, '&')}`;
+      const id = `seoul_partcptn_${a[2]}`;
+      const title = stripHtml(a[3]);
       if (!title) continue;
 
-      const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)]
-        .map(m => m[1].replace(/<[^>]+>/g, '').trim());
-      const district = normalizeDistrict('서울', tds[1]);  // 자치구 정규화 (서울시/전체 → null)
+      // 자치구: <td class="f_b">중구</td>
+      const guMatch = row.match(/<td[^>]*class="[^"]*f_b[^"]*"[^>]*>([\s\S]*?)<\/td>/i);
+      const district = normalizeDistrict('서울', guMatch ? stripHtml(guMatch[1]) : null);
 
-      const periodText = tds[3] || '';
-      const endMatch = periodText.match(/~\s*(\d{4}-\d{2}-\d{2})/);
-      const apply_end = endMatch ? endMatch[1] : null;
-
-      if (apply_end && new Date(apply_end) < new Date()) continue;  // 마감 제외
+      // 접수기간 셀만 콕 집어 날짜 추출 ('접수기간' 라벨 포함 td, 없으면 4번째 칸)
+      const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(m => m[1]);
+      const recvCell = tds.find(t => /접수\s*기간/.test(t)) || tds[3] || '';
+      const recvDates = (stripHtml(recvCell).match(/\d{4}-\d{1,2}-\d{1,2}/g) || []);
+      const apply_start = recvDates[0] ? toIso(recvDates[0]) : null;
+      const apply_end   = recvDates.length >= 2 ? toIso(recvDates[1]) : null;  // 'start ~ ' (open)이면 null
+      // 마감 제외 (접수 종료일이 지난 것)
+      if (apply_end && new Date(apply_end) < new Date()) continue;
 
       items.push({
         id,
@@ -108,7 +132,7 @@ function parseSeoulPartcptn(html) {
         apply_steps: [],
         apply_method: 'both',
         apply_url,
-        apply_start: null,
+        apply_start,
         apply_end,
         is_recurring: !apply_end,
         match_score: calcScore(title),
@@ -121,32 +145,31 @@ function parseSeoulPartcptn(html) {
   return items;
 }
 
-/** 상세 페이지 본문 추출 */
+function toIso(d) {
+  const m = d.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  return m ? `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}` : null;
+}
+
 async function fetchDetail(applyUrl) {
   try {
     const html = await fetchText(applyUrl, { timeout: 8000 });
     const text = extractMainText(html, [
-      /<div[^>]*class="[^"]*(?:view_cont|view_area|prog_view|detail_cont|board_view)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
-      /<div[^>]*class="[^"]*(?:cont|content)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
+      /<div[^>]*class="[^"]*(?:view_cont|view_area|cont_view|board_view|prog_view)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
     ]);
     if (!text || text.length < 30) return null;
     return { text, fields: extractDetailFields(text) };
   } catch { return null; }
 }
 
-/** 상세 결과를 정책에 병합 */
 function enrichWithDetail(p, detail) {
   const { text, fields } = detail;
   if (text) p.benefit_detail = text.slice(0, 1000);
-  if (!p.benefit_summary || p.benefit_summary === p.title) {
-    p.benefit_summary = text.slice(0, 200);
-  }
+  if (!p.benefit_summary || p.benefit_summary === p.title) p.benefit_summary = text.slice(0, 200);
   const conds = textToConditions(text);
   if (conds.length) p.conditions_plain = conds;
-  if (fields.end) p.apply_end = fields.end;
+  if (fields.end) { p.apply_end = fields.end; p.is_recurring = false; }
   if (fields.target) p.target_summary = fields.target.slice(0, 80);
   if (fields.method) p.apply_method = fields.method.slice(0, 60);
-  if (p.apply_end) p.is_recurring = false;
 }
 
 function calcScore(title) {
