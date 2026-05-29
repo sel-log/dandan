@@ -6,6 +6,7 @@
 <title>단단 — 혼자여도 흔들리지 않게</title>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://t1.kakaocdn.net/kakao_js_sdk/2.8.0/kakao.min.js"></script>
 <style>
 :root{
   --dandan:#2B5C3A;--saesak:#4A9960;--isul:#8FD9A8;
@@ -1085,6 +1086,12 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 const SUPABASE_URL  = 'https://fdkgaostxnlurpetswcf.supabase.co';
 const SUPABASE_KEY  = 'sb_publishable_rg5m-akHosAfXoq8lC-22A_X3RP5G3u'; // anon/publishable (공개용, RLS로 보호)
 const supa = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// 카카오 공유용 JS SDK 초기화 (JavaScript 키 — 공개용)
+const KAKAO_JS_KEY = '814132f0b07b6f4223e3ef944f3f812d';
+try {
+  if (window.Kakao && !Kakao.isInitialized()) Kakao.init(KAKAO_JS_KEY);
+} catch (e) { console.warn('Kakao SDK 초기화 실패:', e?.message); }
 
 /* ═══════════════════════════════════════
    DATA — 더미 폴백 (Supabase 연동 전/실패 시 사용)
@@ -2933,11 +2940,78 @@ async function logout(){
 function showShare(){
   const bg=document.createElement('div');
   bg.className='modal-bg';
-  bg.innerHTML=`<div class="modal-sh"><div class="m-handle"></div><div class="m-title">나만 알기엔 너무 좋은 정보죠.</div><div class="share-btns"><button class="share-btn" onclick="closeShare();toast('카카오톡으로 공유했어요 📤')"><span class="sico">💬</span>카카오톡</button><button class="share-btn" onclick="closeShare();toast('링크가 복사되었습니다 ✓')"><span class="sico">🔗</span>링크 복사</button></div></div>`;
+  bg.innerHTML=`<div class="modal-sh"><div class="m-handle"></div><div class="m-title">나만 알기엔 너무 좋은 정보죠.</div><div class="share-btns"><button class="share-btn" onclick="shareKakao()"><span class="sico">💬</span>카카오톡</button><button class="share-btn" onclick="copyShareLink()"><span class="sico">🔗</span>링크 복사</button></div></div>`;
   bg.addEventListener('click',e=>{if(e.target===bg)closeShare();});
   document.getElementById('app').appendChild(bg);
 }
 function closeShare(){ document.querySelector('.modal-bg')?.remove(); }
+
+/* ── 공유 헬퍼 ── */
+function _curPolicy(){ return DB.find(x=>String(x.id)===String(curId)); }
+function _shareUrl(p){
+  // 단단 앱으로 유도 (추후 ?p= 딥링크 처리 가능, 지금은 홈으로 진입해도 무해)
+  return 'https://dandan-ivory.vercel.app' + (p ? ('?p=' + encodeURIComponent(p.id)) : '');
+}
+function _shareDesc(p){
+  const body = (p.desc || p.benefit || '혼자여도 흔들리지 않게, 단단이 챙겨요.').replace(/\s+/g,' ').trim();
+  return `${p.region ? '['+p.region+'] ' : ''}${body}`.slice(0, 100);
+}
+
+function shareKakao(){
+  const p = _curPolicy();
+  closeShare();
+  if(!p){ toast('공유할 혜택을 찾지 못했어요'); return; }
+  const url = _shareUrl(p);
+  // SDK 미로드/초기화 안 됨 → 링크 복사로 폴백
+  if(!(window.Kakao && Kakao.isInitialized && Kakao.isInitialized() && Kakao.Share)){
+    _copyToClipboard(url);
+    return;
+  }
+  const title = p.title || '단단 혜택';
+  const desc  = _shareDesc(p);
+  const link  = { mobileWebUrl: url, webUrl: url };
+  try {
+    if(p.image){
+      Kakao.Share.sendDefault({
+        objectType: 'feed',
+        content: { title, description: desc, imageUrl: p.image, link },
+        buttons: [{ title: '단단에서 보기', link }],
+      });
+    } else {
+      // 이미지 없으면 텍스트 템플릿 (feed는 imageUrl 필수라 실패 방지)
+      Kakao.Share.sendDefault({
+        objectType: 'text',
+        text: `${title}\n${desc}`,
+        link,
+        buttonTitle: '단단에서 보기',
+      });
+    }
+  } catch(e){
+    console.warn('카카오 공유 실패:', e?.message);
+    _copyToClipboard(url);
+  }
+}
+
+function copyShareLink(){
+  const p = _curPolicy();
+  closeShare();
+  _copyToClipboard(_shareUrl(p));
+}
+
+async function _copyToClipboard(text){
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('링크가 복사되었습니다 ✓');
+  } catch(e){
+    // 구형/비보안 컨텍스트 폴백
+    const t=document.createElement('textarea');
+    t.value=text; t.style.position='fixed'; t.style.opacity='0';
+    document.body.appendChild(t); t.focus(); t.select();
+    try { document.execCommand('copy'); toast('링크가 복사되었습니다 ✓'); }
+    catch(_){ toast('복사에 실패했어요'); }
+    t.remove();
+  }
+}
 
 function toast(msg){
   document.querySelectorAll('.toast').forEach(t=>t.remove());
