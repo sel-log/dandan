@@ -177,12 +177,17 @@ export function stripHtml(html) {
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<\/(p|div|li|tr|br|h\d|td)>/gi, '\n')
     .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
+    .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
+    // ── 깨진/누수된 HTML 속성 잔여물 정리 (예: 썸네일 링크 title, img alt가 텍스트로 샘) ──
+    .replace(/상세\s*페이지로?\s*이동\s*"?\s*\/?\s*>?/gi, ' ')   // "상세 페이지로 이동"> 누수
+    .replace(/썸네일\s*이미지\s*"?\s*\/?\s*>?/gi, ' ')           // 썸네일 이미지" /> 누수
+    .replace(/\b(?:alt|title|src|class|style|width|height|onerror|onclick|target|rel)\s*=\s*"[^"]*"/gi, ' ') // 남은 속성 key="val"
+    .replace(/"\s*\/\s*>/g, ' ')                                  // 자기닫힘 꼬리 " />
     .replace(/[ \t]+/g, ' ')
     .replace(/\n{2,}/g, '\n')
     .trim();

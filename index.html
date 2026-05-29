@@ -1517,7 +1517,7 @@ function normalizePolicy(r){
     conds:    c.conds,
     info:     c.info,
     how:      (r.apply_steps||[]).map(s=>({t:s.title||s,d:s.desc||''})),
-    period:   r.apply_end ? '~ '+formatDeadline(r.apply_end) : '상시',
+    period:   periodLabel(r.apply_start, r.apply_end),
     method:   c.method,
     target:   c.target,
     apply_url: fixApplyUrl(r),
@@ -1540,6 +1540,15 @@ function calcPhase(start, end){
 function formatDeadline(dateStr){
   if(!dateStr) return '상시';
   return String(dateStr).slice(0,10).replace(/-/g,'.');
+}
+// 모집기간 전체 라벨: 시작 ~ 마감 (한쪽만 있으면 그쪽만, 둘 다 없으면 상시)
+function periodLabel(start, end){
+  const s = start ? String(start).slice(0,10).replace(/-/g,'.') : null;
+  const e = end   ? String(end).slice(0,10).replace(/-/g,'.')   : null;
+  if(s && e) return `${s} ~ ${e}`;
+  if(e) return `~ ${e}`;
+  if(s) return `${s} ~`;
+  return '상시';
 }
 function calcDday(dateStr){
   if(!dateStr) return 999;
@@ -2525,7 +2534,7 @@ function renderCard(p){
         ${p.desc ? `<div class="pc-desc">${p.desc}</div>` : ''}
       </div>
       <div class="pc-foot">
-        <div class="pc-dday ${isUrgent(p)?'urg':''}">📅 ${ddayLabel(p)}</div>
+        <div class="pc-dday ${isUrgent(p)?'urg':''}">📅 ${p.period||'상시'}</div>
       </div>
     </div>`;
 }
