@@ -1,6 +1,7 @@
 /**
  * 단단 — 복지로 지자체복지서비스 API 프록시
- * GET /api/policies?city=서울&district=성남시 분당구
+ * GET /api/policies?city=서울
+ * 광역시·도 단위로만 운영 (시·군·구 필터 미사용)
  * Vercel 환경변수: BOKJIRO_API_KEY
  */
 
@@ -11,34 +12,6 @@ const SIDO_CODE = {
 const SIDO_NM = {
   '서울':'서울특별시','경기':'경기도','인천':'인천광역시','부산':'부산광역시',
 };
-
-// 시군구 코드 (복지로 API용)
-const SIGUNGU_CODE = {
-  '강남구':'11680','강동구':'11740','강북구':'11305','강서구':'11500',
-  '관악구':'11620','광진구':'11215','구로구':'11530','금천구':'11545',
-  '노원구':'11350','도봉구':'11320','동대문구':'11230','동작구':'11590',
-  '마포구':'11440','서대문구':'11410','서초구':'11650','성동구':'11200',
-  '성북구':'11290','송파구':'11710','양천구':'11470','영등포구':'11560',
-  '용산구':'11170','은평구':'11380','종로구':'11110','중구':'11140','중랑구':'11260',
-  '성남시 분당구':'41135','성남시 수정구':'41111','성남시 중원구':'41113',
-  '수원시 권선구':'41113','수원시 영통구':'41117','수원시 장안구':'41111','수원시 팔달구':'41115',
-  '계양구':'28245','미추홀구':'28177','남동구':'28200','동구':'28140',
-  '부평구':'28237','서구':'28260','연수구':'28185',
-  '금정구':'26410','남구':'26290','동래구':'26260','부산진구':'26230',
-  '북구':'26330','사상구':'26530','사하구':'26380','수영구':'26500',
-  '연제구':'26470','영도구':'26200','해운대구':'26350',
-};
-
-// district 값에서 시군 이름 추출 (응답 sggNm 매칭용)
-// '성남시 분당구' → '성남시', '마포구' → '마포구', '수원시 팔달구' → '수원시'
-function extractSigunNm(district) {
-  if(!district) return null;
-  const parts = district.trim().split(/\s+/);
-  // '성남시 분당구' 처럼 시+구 형태면 앞의 '시'를 반환
-  if(parts.length >= 2 && parts[0].endsWith('시')) return parts[0];
-  // '마포구' 처럼 구만 있으면 그대로
-  return parts[0];
-}
 
 const EXCLUDE_KEYWORDS = [
   // 결혼·임신·출산·육아 관련
@@ -64,17 +37,17 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if(req.method === 'OPTIONS'){ res.status(200).end(); return; }
 
-  const { city, district, life, theme, page = '1', size = '30' } = req.query;
+  const { city, life, theme, page = '1', size = '30' } = req.query;
   const apiKey = process.env.BOKJIRO_API_KEY;
 
   if(!apiKey) return res.status(500).json({ error: 'API 키가 설정되지 않았습니다.' });
   if(!city)   return res.status(400).json({ error: 'city 파라미터가 필요합니다.' });
 
-  const sidoCd    = SIDO_CODE[city];
-  const sigunguCd = district ? SIGUNGU_CODE[district] : undefined;
+  const sidoCd = SIDO_CODE[city];
   if(!sidoCd) return res.status(400).json({ error: `지원하지 않는 지역: ${city}` });
 
-  const fetchSize = parseInt(size) * 12;
+  // 제외 키워드로 걸러질 항목을 감안해 넉넉히 받아온 뒤 size로 자름
+  const fetchSize = parseInt(size) * 4;
 
   const params = new URLSearchParams({
     serviceKey: apiKey,
@@ -83,9 +56,8 @@ export default async function handler(req, res) {
     numOfRows: String(fetchSize),
     siDoCd:    sidoCd,
   });
-  if(sigunguCd) params.append('siGunGuCd',      sigunguCd);
-  if(life)      params.append('lifeArray',       life);
-  if(theme)     params.append('intrsThemaArray', theme);
+  if(life)  params.append('lifeArray',       life);
+  if(theme) params.append('intrsThemaArray', theme);
 
   const url = `http://apis.data.go.kr/B554287/LocalGovernmentWelfareInformations/LcgvWelfarelist?${params}`;
 
@@ -100,9 +72,7 @@ export default async function handler(req, res) {
     let m;
     while((m = re.exec(xml)) !== null) blocks.push(m[1]);
 
-    const sidoNm  = SIDO_NM[city];
-    // district 있을 때: 시군 이름 추출 ('성남시 분당구' → '성남시')
-    const sigunNm = district ? extractSigunNm(district) : null;
+    const sidoNm = SIDO_NM[city];
 
     const all = blocks.map(block => {
       const get = tag => getXmlVal(block, tag) || '';
@@ -113,9 +83,8 @@ export default async function handler(req, res) {
         org_type:        'local_gov',
         source_portal:   get('servDtlLink'),
         region_city:     city,
-        region_district: get('sggNm') || null,
+        region_district: get('sggNm') || null,  // 백엔드 보존용 (UI 미노출)
         ctpvNm:          get('ctpvNm'),
-        sggNm:           get('sggNm'),
         category:        mapThemeNm(get('intrsThemaNmArray')),
         benefit_summary: cleanText(get('servDgst')) || get('servNm'),
         benefit_detail:  cleanText(get('servDgst')),
@@ -136,58 +105,17 @@ export default async function handler(req, res) {
       return p.ctpvNm.includes(sidoNm) || p.ctpvNm.includes(city);
     });
 
-    // ── 2단계: 시군구 필터 (district 선택 시) ──
-    // 복지로 API는 sggNm이 자주 비어있어서 org(기관명)에서 시군 추출
-    // 통과 조건:
-    //   A) sggNm도 없고 org에도 다른 시군 언급 없음 → 경기도 광역 혜택 → 통과
-    //   B) sggNm 또는 org가 선택한 시군 포함 → 해당 시군 혜택 → 통과
-    //   C) 다른 시군 데이터 → 제외
-    if(sigunNm) {
-      // 경기도 내 다른 시군 목록 — 선택한 시군 제외하고 나머지 전부
-      const ALL_GYEONGGI = [
-        '수원시','성남시','용인시','부천시','안산시','남양주시','화성시','평택시',
-        '고양시','의정부시','시흥시','파주시','광명시','김포시','광주시','군포시',
-        '오산시','이천시','안성시','의왕시','하남시','양주시','구리시','포천시',
-        '여주시','동두천시','안양시','가평군','양평군','연천군',
-      ];
-      const ALL_SEOUL = [
-        '강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구',
-        '노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구',
-        '성동구','성북구','송파구','양천구','영등포구','용산구','은평구',
-        '종로구','중구','중랑구',
-      ];
-      const ALL_INCHEON = ['계양구','미추홀구','남동구','부평구','연수구','서구','동구','중구'];
-      const ALL_BUSAN   = ['해운대구','부산진구','동래구','사상구','사하구','수영구',
-                           '금정구','남구','동구','영도구','연제구','강서구','북구'];
-      const OTHER_SIGUN = [...ALL_GYEONGGI,...ALL_SEOUL,...ALL_INCHEON,...ALL_BUSAN]
-        .filter(s => s !== sigunNm && !s.includes(sigunNm) && !sigunNm.includes(s));
-
-      filtered = filtered.filter(p => {
-        const orgText = p.org || '';
-        const sgg     = p.sggNm || '';
-
-        // sggNm 또는 org가 선택 시군 포함 → 통과 (B)
-        if(sgg.includes(sigunNm) || orgText.includes(sigunNm)) return true;
-
-        // 다른 시군이 org에 명시돼 있으면 제외 (C)
-        if(OTHER_SIGUN.some(s => orgText.includes(s) || sgg.includes(s))) return false;
-
-        // 위 어디에도 해당 없음 → 광역 혜택으로 간주 통과 (A)
-        return true;
-      });
-    }
-
-    // ── 3단계: 제외 키워드 필터 ──
+    // ── 2단계: 1인가구 무관 항목 제외 ──
     filtered = filtered.filter(p => {
       const text = p.title + ' ' + p.benefit_summary;
       return !EXCLUDE_KEYWORDS.some(kw => text.includes(kw));
     });
 
-    // ── 4단계: match_score 내림차순 정렬 ──
+    // ── 3단계: match_score 내림차순 정렬 ──
     filtered.sort((a, b) => b.match_score - a.match_score);
 
-    // 임시 필드 제거
-    const policies = filtered.slice(0, parseInt(size)).map(({ ctpvNm, sggNm, ...rest }) => rest);
+    // 임시 필드(ctpvNm) 제거 후 size만큼 자름
+    const policies = filtered.slice(0, parseInt(size)).map(({ ctpvNm, ...rest }) => rest);
 
     return res.status(200).json({
       success: true,
@@ -195,7 +123,6 @@ export default async function handler(req, res) {
       page: parseInt(page),
       size: policies.length,
       city,
-      district: district || null,
       policies,
     });
 

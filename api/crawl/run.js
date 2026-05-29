@@ -4,22 +4,20 @@
  *
  * Vercel Cron으로 매일 새벽 3시 자동 실행
  * 수동 실행: /api/crawl/run?secret=CRON_SECRET
+ *
+ * 광역시·도 단위 운영 — 서울·경기(MVP1) + 인천·부산(MVP2)
  */
 
-import seoulHandler      from './seoul.js';
 import seoulPartcptnHandler from './seoul-partcptn.js';
-import suwonHandler      from './suwon.js';
-import seongnamHandler   from './seongnam.js';
-import ggYouthHandler    from './gg-youth.js';
-import gg1inHandler      from './gg-1in.js';
+import gg1inHandler         from './gg-1in.js';
+import incheonHandler       from './incheon.js';
+import busanHandler         from './busan.js';
 
 const CRAWLERS = [
-  { name: '서울시 참여프로그램',       handler: seoulPartcptnHandler },  // ← 최우선
-  { name: '경기도 1인가구 참여프로그램', handler: gg1inHandler },          // ← 최우선
-  { name: '서울시 씽글벙글 지원사업',   handler: seoulHandler },
-  { name: '수원시 쏘옥',              handler: suwonHandler },
-  { name: '성남시 1인가구',           handler: seongnamHandler },
-  { name: '경기청년포털',             handler: ggYouthHandler },
+  { name: '서울시 씽글벙글 참여프로그램', handler: seoulPartcptnHandler },
+  { name: '경기도 1인가구 참여프로그램',  handler: gg1inHandler },
+  { name: '인천 1인가구 포털',           handler: incheonHandler },
+  { name: '부산 1인가구 지원센터',        handler: busanHandler },
 ];
 
 export default async function handler(req, res) {

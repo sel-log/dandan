@@ -1,14 +1,20 @@
 /**
  * 단단 크롤러 — 경기도 1인가구 포털 참여프로그램
- * API: https://www.gg.go.kr/1ingg/bbs/ajax/boardList.do
- * JSON 응답, 인증 불필요, 크레딧 0원
+ * 목록 API: https://www.gg.go.kr/1ingg/bbs/ajax/boardList.do (JSON, 인증 불필요)
+ * 상세    : https://www.gg.go.kr/1ingg/bbs/boardView.do?bsIdx=873&menuId=4112&bIdx={GNO2}
  */
 
-import { fetchWithRetry, upsertPolicies, mapCategory, parseDate } from './_shared.js';
+import {
+  fetchWithRetry, fetchText, upsertPolicies, mapCategory, parseDate,
+  stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency,
+} from './_shared.js';
 
-const API = 'https://www.gg.go.kr/1ingg/bbs/ajax/boardList.do';
+const API         = 'https://www.gg.go.kr/1ingg/bbs/ajax/boardList.do';
+const DETAIL_VIEW = 'https://www.gg.go.kr/1ingg/bbs/boardView.do';
 const DETAIL_BASE = 'https://www.gg.go.kr/1ingg/bbs/board.do';
-const MAX_PAGES = 20; // 최대 160건 (8개/페이지 × 20)
+const MAX_PAGES    = 20;  // 최대 160건 (8개/페이지 × 20)
+const DETAIL_LIMIT = 80;  // 상세 본문 크롤링 상한 (타임아웃 방지)
+const DETAIL_CONC  = 6;   // 상세 동시 요청 수
 
 export default async function handler(req, res) {
   if (req.headers['x-cron-secret'] !== process.env.CRON_SECRET) {
@@ -29,15 +35,10 @@ export default async function handler(req, res) {
         categoryAllYn: 'Y',
         old: '1',
         old1: '0', old2: '0', old3: '0', old4: '0',
-        // area 파라미터 (경기도 전체 = area:1, 나머지 0)
         area: '1',
-        ...Object.fromEntries(
-          Array.from({length: 31}, (_,i) => [`area${i+1}`, '0'])
-        ),
+        ...Object.fromEntries(Array.from({length: 31}, (_,i) => [`area${i+1}`, '0'])),
         category: '1',
-        ...Object.fromEntries(
-          Array.from({length: 6}, (_,i) => [`category${i+1}`, '0'])
-        ),
+        ...Object.fromEntries(Array.from({length: 6}, (_,i) => [`category${i+1}`, '0'])),
       });
 
       const r = await fetchWithRetry(API, {
@@ -53,48 +54,48 @@ export default async function handler(req, res) {
       const totalPages = json.paginationInfo?.totalPageCount || 1;
 
       for (const item of list) {
-        // 마감된 항목 제외
-        if (item.ADD_COLUMN09 === '마감') continue;
+        if (item.ADD_COLUMN09 === '마감') continue;  // 마감 제외
 
         const id = `gg1in_${item.GNO2}`;
         const title = (item.SUBJECT || '').replace(/<[^>]+>/g, '').trim();
         if (!title) continue;
 
-        // REMARK HTML에서 신청기간·대상 파싱
         const remark = item.REMARK || '';
         const dateMatch = remark.match(/신청기간[^\d]*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})[^\d~]*[~～]\s*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})/);
         const apply_end = dateMatch ? parseDate(dateMatch[2]) : parseDate(item.WRITE_DATE2);
 
-        // 신청 URL: ADD_COLUMN06 우선, 없으면 상세 페이지
         const apply_url = item.ADD_COLUMN06
           ? item.ADD_COLUMN06.trim()
           : `${DETAIL_BASE}?bsIdx=873&menuId=4112&boardIdx=${item.GNO2}`;
 
-        // 지역: WRITER_NAME (작성 시군)
-        const district = item.WRITER_NAME || null;
+        const district = item.WRITER_NAME || null;  // 작성 시군 (백엔드 보존)
 
         results.push({
-          id,
-          title,
-          org: district ? `경기도 ${district}` : '경기도',
-          org_type: 'local_gov',
-          source_portal: 'https://www.gg.go.kr/1ingg/bbs/board.do?bsIdx=873&menuId=4112',
-          region_city: '경기',
-          region_district: district,
-          category: mapCategory(title),
-          benefit_summary: stripHtml(remark).slice(0, 200) || title,
-          benefit_detail: stripHtml(remark).slice(0, 500),
-          conditions_plain: parseConditions(remark),
-          apply_steps: [],
-          apply_method: 'both',
-          apply_url,
-          apply_start: parseDate(item.WRITE_DATE2),
-          apply_end,
-          is_recurring: false,
-          match_score: calcScore(title),
-          target_summary: '1인가구',
-          tags: ['1인가구', '경기도', ...(district ? [district] : [])],
-          updated_at: new Date().toISOString(),
+          gno2: item.GNO2,
+          remarkText: stripHtml(remark),
+          policy: {
+            id,
+            title,
+            org: district ? `경기도 ${district}` : '경기도',
+            org_type: 'local_gov',
+            source_portal: 'https://www.gg.go.kr/1ingg/bbs/board.do?bsIdx=873&menuId=4112',
+            region_city: '경기',
+            region_district: district,
+            category: mapCategory(title),
+            benefit_summary: stripHtml(remark).slice(0, 200) || title,
+            benefit_detail: stripHtml(remark).slice(0, 500),
+            conditions_plain: parseConditionsFromRemark(remark),
+            apply_steps: [],
+            apply_method: 'both',
+            apply_url,
+            apply_start: parseDate(item.WRITE_DATE2),
+            apply_end,
+            is_recurring: false,
+            match_score: calcScore(title),
+            target_summary: '1인가구',
+            tags: ['1인가구', '경기도', ...(district ? [district] : [])],
+            updated_at: new Date().toISOString(),
+          },
         });
       }
 
@@ -105,36 +106,76 @@ export default async function handler(req, res) {
     }
   }
 
-  if (results.length) {
-    // 중복 id 제거 (같은 배치 내)
-    const seen = new Set();
-    const deduped = results.filter(r => {
-      if(seen.has(r.id)) return false;
-      seen.add(r.id);
-      return true;
-    });
-    try { await upsertPolicies(deduped); }
+  // 같은 배치 내 중복 id 제거
+  const seen = new Set();
+  const deduped = results.filter(r => {
+    if (seen.has(r.policy.id)) return false;
+    seen.add(r.policy.id);
+    return true;
+  });
+
+  // ── 상세 본문 크롤링 (Task 3) ──
+  let detailOk = 0;
+  const targets = deduped.slice(0, DETAIL_LIMIT);
+  await mapWithConcurrency(targets, DETAIL_CONC, async (r) => {
+    const detail = await fetchDetail(r.gno2);
+    if (detail) { enrichWithDetail(r.policy, detail); detailOk++; }
+  });
+
+  const policies = deduped.map(r => r.policy);
+
+  if (policies.length) {
+    try { await upsertPolicies(policies); }
     catch (e) { return res.status(500).json({ error: e.message }); }
   }
 
-  return res.status(200).json({ success: true, portal: '경기도 1인가구 참여프로그램', count: results.length });
+  return res.status(200).json({
+    success: true,
+    portal: '경기도 1인가구 참여프로그램',
+    count: policies.length,
+    detail_enriched: detailOk,
+  });
 }
 
-function stripHtml(html) {
-  return (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').replace(/&nbsp;/g, ' ').trim();
+/** 상세 페이지 본문 추출 */
+async function fetchDetail(gno2) {
+  try {
+    const url = `${DETAIL_VIEW}?bsIdx=873&menuId=4112&bIdx=${gno2}`;
+    const html = await fetchText(url, { timeout: 8000 });
+    const text = extractMainText(html, [
+      /<div[^>]*class="[^"]*(?:view_cont|board_view|bbs_view|view_area)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
+    ]);
+    if (!text || text.length < 30) return null;
+    return { text, fields: extractDetailFields(text) };
+  } catch { return null; }
 }
 
-function parseConditions(remark) {
+/** 상세 결과를 policy에 병합 (기존 값이 빈약할 때만 보강) */
+function enrichWithDetail(p, detail) {
+  const { text, fields } = detail;
+  if (text && text.length > (p.benefit_detail || '').length) {
+    p.benefit_detail = text.slice(0, 1000);
+  }
+  if ((!p.benefit_summary || p.benefit_summary === p.title) && text) {
+    p.benefit_summary = text.slice(0, 200);
+  }
+  const conds = textToConditions(text);
+  if (conds.length > (p.conditions_plain || []).length) p.conditions_plain = conds;
+  if (fields.end) p.apply_end = fields.end;
+  if (fields.target) p.target_summary = fields.target.slice(0, 80);
+  if (fields.method) p.apply_method = fields.method.slice(0, 60);
+}
+
+function parseConditionsFromRemark(remark) {
   const text = stripHtml(remark);
   const conds = [];
-  // 대상 추출
   const targetMatch = text.match(/대상\s*[:：]?\s*([^.!\n]{5,80})/);
   if (targetMatch) conds.push(targetMatch[1].trim());
   return conds.slice(0, 3);
 }
 
 function calcScore(title) {
-  let s = 90; // 1인가구 포털 데이터라 기본점수 높게
+  let s = 90;  // 1인가구 포털 데이터라 기본점수 높게
   if (/소셜다이닝|다이닝/.test(title)) s += 5;
   if (/청년/.test(title)) s += 5;
   if (/무료/.test(title)) s += 3;
