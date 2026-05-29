@@ -1825,13 +1825,14 @@ async function submitEmailAuth(){
 
 /* 로그인 후 기존 세션에서 유저 복원 */
 async function restoreSessionUser(supaUser){
+  const authProvider = supaUser?.app_metadata?.provider || 'email'; // kakao | email
   const { data: profile } = await supa.from('profiles')
     .select('*').eq('id', supaUser.id).single();
 
   if(profile?.nickname){
     user = {
       nickname:     profile.nickname,
-      provider:     profile.provider || 'email',
+      provider:     profile.provider || authProvider,
       supabase_uid: supaUser.id,
     };
     if(profile.region_city && CITY_MAP[profile.region_city]){
@@ -1857,9 +1858,9 @@ async function restoreSessionUser(supaUser){
       toast(`${user.nickname}님, 반가워요! 우리 동네를 설정해볼까요? 📍`);
     }
   } else {
-    // 프로필 없으면 닉네임 설정으로
-    user = { nickname: null, provider: 'email', supabase_uid: supaUser.id };
-    pendingProvider = 'email';
+    // 프로필 없으면 닉네임 설정으로 (회원가입)
+    user = { nickname: null, provider: authProvider, supabase_uid: supaUser.id };
+    pendingProvider = authProvider;
     resetTerms();
     goTo('sc-terms');
   }
