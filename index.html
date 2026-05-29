@@ -1368,7 +1368,7 @@ function mapBulletLabel(L){
 }
 const _SK_KW = ['활동일시','활동내용','프로그램내용','진행방법','진행장소','진행문의','신청방법','접수방법','참여방법','모집인원','참여인원','참여대상','지원대상','모집대상','이용대상','대상연령','신청기간','모집기간','접수기간','운영기간','운영시간','진행기간','참가비용','참가비','참여비','수강료','이용료','연락처','문의처','회기수','일시','일정','대상','장소','정원','인원','회차','회기','문의','내용','안내','구분','카테고리','기관명','담당자'].sort((a,b)=>b.length-a.length);
 const _SK_RE = new RegExp('(?:^|[^가-힣A-Za-z])(' + _SK_KW.join('|') + ')\\s*(?:\\([^)]*\\))?\\s*[:：]\\s*', 'gu');
-const _SK_BULLET = /[✅✔☑▶▷◆◇●○■□★☆🚩📍👤💸💰📅📦🔗🍳🎁🗓💡📌▪▫🎈🔔🌱]/u;
+const _SK_BULLET = /[✅✔☑▶▷◆◇●○■□🚩📍👤💸💰📅📦🔗🍳🎁🗓💡📌▪▫🎈🔔🌱]/u;
 // 장소 값에서 주소 뒤에 붙은 프로그램 설명 텍스트 제거 → 주소만 (서울 진행장소 등)
 function _cleanPlace(v){
   if(!/(특별시|광역시|[가-힣]{2,}시|[가-힣]{2,}구|[가-힣]+로\b|[가-힣]+길\b|\d+\s*층|\d+\s*호)/.test(v)) return v;
@@ -1382,6 +1382,7 @@ function _skCleanVal(v){
   v = v.split(/\s*※/)[0];              // ※ 노트 제거
   v = v.replace(/\s+\d{1,2}[.)]\s*$/,'');        // 끝의 다음 번호("4." 등) 제거
   v = v.replace(/[\s\uD800-\uDBFF]+$/u,'');       // 끝 공백/외톨이 surrogate 제거
+  v = v.replace(/\s*[(（]\s*$/,'');                // 끝에 매달린 여는 괄호 제거 ("…10명 (")
   return v.replace(/\s+/g,' ').trim();
 }
 function parseBulletFields(text){
@@ -2360,7 +2361,7 @@ const REGION_SOON_NOTICE = `
     <span style="font-size:16px;flex-shrink:0;">🌱</span>
     <div>
       <div style="font-size:13px;font-weight:800;color:var(--text1);margin-bottom:3px;">다른 지역도 준비 중이에요</div>
-      <div style="font-size:12px;color:var(--text3);line-height:1.6;">지금은 서울·경기·인천·부산에서 서비스 중이에요. 알림 신청하면 내 지역 출시 때 가장 먼저 알려드릴게요.</div>
+      <div style="font-size:12px;color:var(--text3);line-height:1.6;">지금은 서울·경기·부산에서 서비스 중이에요. 다른 지역도 곧 만나요.</div>
     </div>
   </div>`;
 

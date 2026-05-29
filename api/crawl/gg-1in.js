@@ -13,7 +13,7 @@ const API         = 'https://www.gg.go.kr/1ingg/bbs/ajax/boardList.do';
 const DETAIL_VIEW = 'https://www.gg.go.kr/1ingg/bbs/boardView.do';
 const DETAIL_BASE = 'https://www.gg.go.kr/1ingg/bbs/board.do';
 const ORIGIN       = 'https://www.gg.go.kr';
-const MAX_PAGES    = 60;  // 더 깊이 스캔 (마감 건이 많아 접수중이 뒤 페이지에도 섞임)
+const MAX_PAGES    = 25;  // 포털 총 페이지 수(약 25). pageUnit 크게 주면 1페이지로도 충분
 const PAGE_CONC    = 6;   // 목록 페이지 병렬 fetch
 const DETAIL_LIMIT = 220; // 상세 본문·이미지 크롤링 상한 (포털 전체 ~198개 커버)
 const DETAIL_CONC  = 12;  // 상세 동시 요청 수
@@ -25,6 +25,8 @@ export default async function handler(req, res) {
 
   const results = [];
   const pageNos = Array.from({ length: MAX_PAGES }, (_, i) => i + 1);
+  const pageStats = [];          // 진단: 페이지별 결과 수/첫 글번호 (페이지네이션 동작 확인용)
+  let jsonKeysSeen = null;
 
   await mapWithConcurrency(pageNos, PAGE_CONC, async (page) => {
     try {
@@ -32,6 +34,10 @@ export default async function handler(req, res) {
         bsIdx: '873',
         menuId: '4112',
         pageIndex: String(page),
+        // 페이지 크기를 크게 지정 — 서버가 받아주면 한 번에 전체를 반환(페이지네이션 미동작 대비)
+        pageUnit: '500',
+        pageSize: '500',
+        recordCountPerPage: '500',
         bcIdx: '0',
         searchCondition: 'SUBJECT',
         searchKeyword: '',
@@ -52,6 +58,8 @@ export default async function handler(req, res) {
 
       const json = await r.json();
       const list = json.resultList || [];
+      if (!jsonKeysSeen) jsonKeysSeen = Object.keys(json);
+      if (page <= 5) pageStats.push({ page, len: list.length, first: list[0]?.GNO2 ?? null });
 
       for (const item of list) {
         const isClosed = item.ADD_COLUMN09 === '마감';  // 마감도 수집하되 마감 표시(전 시군구 데이터 확보)
@@ -140,11 +148,21 @@ export default async function handler(req, res) {
     catch (e) { return res.status(500).json({ error: e.message }); }
   }
 
+  const districts = [...new Set(deduped.map(r => r.policy.region_district).filter(Boolean))].sort();
+
   return res.status(200).json({
     success: true,
     portal: '경기도 1인가구 참여프로그램',
     count: policies.length,
     detail_enriched: detailOk,
+    debug: {
+      rawCollected: results.length,   // 페이지 전체에서 모은 원본 항목 수(중복 포함)
+      uniqueCount: deduped.length,
+      districts,                       // 수집된 시군구 목록
+      districtCount: districts.length,
+      pageStats,                       // 페이지별 결과 수/첫 글번호 (페이지네이션 동작 확인)
+      jsonKeys: jsonKeysSeen,          // 목록 API 응답의 최상위 키(페이징 정보 단서)
+    },
   });
 }
 
