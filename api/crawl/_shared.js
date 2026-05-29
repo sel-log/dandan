@@ -129,15 +129,20 @@ const WIDE_NAMES = new Set([
 ]);
 export function normalizeDistrict(city, raw) {
   if (!raw) return null;
-  let d = String(raw).trim().replace(/특례시$/, '시');
+  let d = String(raw).trim().replace(/특례시/, '시');
   if (WIDE_NAMES.has(d)) return null;
 
   // 광역명 접두 제거: '서울특별시 마포구' / '경기도 수원시' → 끝 토큰들
-  d = d.replace(/^(서울특별시|서울시|경기도|인천광역시|부산광역시)\s+/, '').trim();
+  d = d.replace(/^(서울특별시|서울시|경기도|인천광역시|부산광역시)\s*/, '').trim();
 
-  // 경기는 시·군 단위까지만 ('성남시 분당구' → '성남시')
+  // 경기: 시·군 토큰만 추출 ('성남시 분당구'→'성남시', '의왕시가족센터'→'의왕시')
   if (city === '경기') {
-    const m = d.match(/^(\S+?[시군])(?:\s|$)/);
+    const m = d.match(/([가-힣]{2,}?[시군])(?![가-힣])/) || d.match(/^([가-힣]{2,}?[시군])/);
+    return m ? m[1] : null;   // 시·군 토큰 없으면 광역 공통(district 없음)
+  }
+  // 서울·부산: 구·군 토큰만 추출 ('노원구 상계동'→'노원구')
+  if (city === '서울' || city === '부산') {
+    const m = d.match(/([가-힣]{2,}?[구군])(?![가-힣])/) || d.match(/^([가-힣]{2,}?[구군])/);
     if (m) d = m[1];
   }
   return WIDE_NAMES.has(d) ? null : d;

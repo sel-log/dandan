@@ -1351,21 +1351,23 @@ function parseFields(text){
 // 구조화 본문 파서 — "라벨 : 값"을 불릿(✅·●·🚩·📍 등)/번호목록 무관하게 스캔. 경기 gg1in 다양한 형식 대응
 function mapBulletLabel(L){
   const s = L.replace(/\s+/g,'');
-  if(/문의|연락처|콜센터/.test(s)) return '문의';
+  if(/진행문의|문의처|연락처|문의|콜센터/.test(s)) return '문의';
+  if(/진행방법/.test(s)) return '진행 방식';
   if(/신청방법|접수방법|참여방법|신청방식/.test(s)) return '신청 방법';
   if(/대상연령/.test(s)) return '대상 연령';
   if(/모집인원|참여인원|정원|인원/.test(s)) return '모집 인원';
-  if(/참가비|수강료|이용료|참가비용/.test(s)) return '참가비';
+  if(/참가비|참여비|수강료|이용료|참가비용/.test(s)) return '참가비';
   if(/회차|회기|횟수/.test(s)) return '회차';
-  if(/장소|위치|진행장소/.test(s)) return '장소';
-  if(/활동일시|일시|일정/.test(s)) return '일시';
+  if(/진행장소|장소|위치/.test(s)) return '장소';
+  if(/활동일시|운영기간|진행기간|일시|일정/.test(s)) return '일시';
   if(/신청기간|모집기간|접수기간/.test(s)) return null;        // 신청기간은 상단 헤더가 표시
   if(/활동내용|프로그램내용|내용|안내/.test(s)) return '내용';   // 핵심내용으로 사용
-  if(/대상|참가자격|신청자격|자격/.test(s)) return '대상';
+  if(/참여대상|지원대상|모집대상|이용대상|대상|참가자격|신청자격|자격/.test(s)) return '대상';
+  if(/구분|카테고리|기관명|담당자/.test(s)) return null;        // 서울 메타데이터 — 경계로만 사용
   return null;
 }
-const _SK_KW = ['활동일시','활동내용','프로그램내용','신청방법','접수방법','참여방법','모집인원','참여인원','대상연령','신청기간','모집기간','접수기간','참가비','수강료','이용료','연락처','문의처','일시','일정','대상','장소','정원','인원','회차','회기','문의','내용','안내'].sort((a,b)=>b.length-a.length);
-const _SK_RE = new RegExp('(?:^|[^가-힣A-Za-z])(' + _SK_KW.join('|') + ')\\s*[:：]\\s*', 'gu');
+const _SK_KW = ['활동일시','활동내용','프로그램내용','진행방법','진행장소','진행문의','신청방법','접수방법','참여방법','모집인원','참여인원','참여대상','지원대상','모집대상','이용대상','대상연령','신청기간','모집기간','접수기간','운영기간','진행기간','참가비','참여비','수강료','이용료','연락처','문의처','일시','일정','대상','장소','정원','인원','회차','회기','문의','내용','안내','구분','카테고리','기관명','담당자'].sort((a,b)=>b.length-a.length);
+const _SK_RE = new RegExp('(?:^|[^가-힣A-Za-z])(' + _SK_KW.join('|') + ')\\s*(?:\\([^)]*\\))?\\s*[:：]\\s*', 'gu');
 const _SK_BULLET = /[✅✔☑▶▷◆◇●○■□★☆🚩📍👤💸💰📅📦🔗🍳🎁🗓💡📌▪▫🎈🔔]/u;
 function _skCleanVal(v){
   v = v.split(_SK_BULLET)[0];          // 다음 불릿 이후 잘라냄 (➡ 화살표는 보존)
@@ -2044,11 +2046,7 @@ function openLocationScreen(){
   if(locToShow && locToShow.city && CITY_MAP[locToShow.city]){
     citySel.value = locToShow.city;
     citySel.className = 'lc-select';
-    _populateDistricts(locToShow.city, 'loc-sel-district', 'loc-district-wrap', 'loc-confirm-btn', 'loc-region-notice');
-    if(locToShow.district && distSel){
-      distSel.value = locToShow.district;
-      distSel.className = 'lc-select';
-    }
+    _populateDistricts(locToShow.city, 'loc-sel-district', 'loc-district-wrap', 'loc-confirm-btn', 'loc-region-notice', locToShow.district || null);
   } else {
     citySel.value = '';
     citySel.className = 'lc-select placeholder';
@@ -2407,32 +2405,56 @@ function setSort(el,s){
    공용 유틸 — 광역 선택 시 하위(구/시) 드롭다운 채우기 + 확정버튼/안내 토글
    (onLocCityChange / onEditCityChange / onFeedCityChange 공통)
 ═══════════════════════════════════════ */
-function _populateDistricts(cityVal, distSelId, distWrapId, confirmBtnId, noticeId){
+// 광역별 '데이터에 실제로 존재하는' region_district 목록 (캐시)
+const _distCache = {};
+async function _fetchDistricts(city){
+  if(!city) return [];
+  if(_distCache[city]) return _distCache[city];
+  try{
+    const { data, error } = await supa.from('policies')
+      .select('region_district').eq('region_city', city).limit(2000);
+    if(error) return null;
+    const set = new Set();
+    (data||[]).forEach(r=>{ const d=(r.region_district||'').trim();
+      if(d && !/^(전체|전지역|전\s*지역|공통|전국|광역)$/.test(d)) set.add(d); });
+    return (_distCache[city] = [...set]);
+  }catch{ return null; }
+}
+
+async function _populateDistricts(cityVal, distSelId, distWrapId, confirmBtnId, noticeId, presetDistrict){
   const distSel  = distSelId  ? document.getElementById(distSelId)  : null;
   const distWrap = distWrapId ? document.getElementById(distWrapId) : null;
   const cd = cityVal ? CITY_MAP[cityVal] : null;
 
-  if(distSel){
-    const lbl = cd?.districtLabel || '시·군·구';
-    distSel.innerHTML = `<option value="">${lbl} 전체</option>`;
-    distSel.className = 'lc-select placeholder';
-    if(cd?.districts){
-      [...cd.districts].sort((a,b)=>a.localeCompare(b,'ko')).forEach(d=>{
-        const o = document.createElement('option');
-        o.value = d; o.textContent = d;
-        distSel.appendChild(o);
-      });
-    }
-  }
   if(distWrap) distWrap.style.display = cd ? 'block' : 'none';
+  if(confirmBtnId){ const b=document.getElementById(confirmBtnId); if(b) b.className = cityVal?'btn-primary':'btn-primary off'; }
+  if(noticeId){ const n=document.getElementById(noticeId); if(n) n.style.display = cityVal?'none':'block'; }
+  if(!distSel) return;
 
-  if(confirmBtnId){
-    const btn = document.getElementById(confirmBtnId);
-    if(btn) btn.className = cityVal ? 'btn-primary' : 'btn-primary off';
+  const lbl = cd?.districtLabel || '시·군·구';
+  distSel.innerHTML = `<option value="">${lbl} 전체</option>`;
+  distSel.className = 'lc-select placeholder';
+  distSel.dataset.city = cityVal || '';
+  if(!cd) return;
+
+  // 데이터에 실제로 있는(그리고 알려진) 시군구만 노출
+  const dataList = await _fetchDistricts(cityVal);
+  if(distSel.dataset.city !== cityVal) return;   // 그 사이 도시 변경 → 무시
+  const known = cd.districts || [];
+  let list;
+  if(dataList && dataList.length){
+    const set = new Set(dataList);
+    list = known.filter(d => set.has(d));         // 알려진 시군구 ∩ 데이터 존재
+  } else if(dataList === null){
+    list = [...known];                            // 쿼리 실패 → 전체 폴백
+  } else {
+    list = [];                                    // 데이터에 시군구 없음 → '전체'만
   }
-  if(noticeId){
-    const noticeEl = document.getElementById(noticeId);
-    if(noticeEl) noticeEl.style.display = cityVal ? 'none' : 'block';
+  list.sort((a,b)=>a.localeCompare(b,'ko')).forEach(d=>{
+    const o=document.createElement('option'); o.value=d; o.textContent=d; distSel.appendChild(o);
+  });
+  if(presetDistrict && list.includes(presetDistrict)){
+    distSel.value = presetDistrict; distSel.className = 'lc-select';
   }
 }
 
@@ -2637,8 +2659,7 @@ function openEditProfile(){
   if(loc && loc.city && CITY_MAP[loc.city]){
     citySel.value = loc.city;
     citySel.className = 'lc-select';
-    _populateDistricts(loc.city, 'edit-sel-district', 'edit-dist-wrap', null, 'edit-region-notice');
-    if(loc.district && distSel){ distSel.value = loc.district; distSel.className = 'lc-select'; }
+    _populateDistricts(loc.city, 'edit-sel-district', 'edit-dist-wrap', null, 'edit-region-notice', loc.district || null);
   } else {
     _populateDistricts('', 'edit-sel-district', 'edit-dist-wrap', null, 'edit-region-notice');
   }
