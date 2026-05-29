@@ -78,7 +78,7 @@ export async function upsertPolicies(policies) {
     if (image_url && !/\[\[IMG:/.test(rest.benefit_detail || '')) {
       rest.benefit_detail = `[[IMG:${image_url}]] ${rest.benefit_detail || ''}`.trim();
     }
-    return rest;
+    return sanitizeDeep(rest);
   });
   const res = await fetch(`${SUPABASE_URL}/rest/v1/policies`, {
     method: 'POST',
@@ -95,6 +95,24 @@ export async function upsertPolicies(policies) {
     throw new Error(`Supabase upsert 실패: ${err}`);
   }
   return { count: policies.length };
+}
+
+/** 깨진 문자 제거: 외톨이 surrogate(잘린 이모지)·NUL → PostgREST "Empty or invalid json"·Postgres NUL 거부 방지 */
+function sanitizeStr(s) {
+  return s
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')  // 짝 없는 high surrogate
+    .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '') // 짝 없는 low surrogate
+    .replace(/\u0000/g, '');                              // NUL (Postgres text 불가)
+}
+function sanitizeDeep(v) {
+  if (typeof v === 'string') return sanitizeStr(v);
+  if (Array.isArray(v)) return v.map(sanitizeDeep);
+  if (v && typeof v === 'object') {
+    const o = {};
+    for (const k in v) o[k] = sanitizeDeep(v[k]);
+    return o;
+  }
+  return v;
 }
 
 /** 카테고리 문자열 → 단단 카테고리 */
