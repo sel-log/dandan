@@ -143,12 +143,28 @@ async function fetchDetail(gno2) {
   try {
     const url = `${DETAIL_VIEW}?bsIdx=873&menuId=4112&bIdx=${gno2}`;
     const html = await fetchText(url, { timeout: 8000 });
-    const text = extractMainText(html, [
+
+    // 본문 콘텐츠 이미지(attachedImageView) 우선 추출 — 이미지형 게시글의 포스터
+    let image = '';
+    const aiv = html.match(/<img[^>]+src=["']([^"']*attachedImageView\.do[^"']*)["']/i);
+    if (aiv) {
+      let src = aiv[1].replace(/&amp;/g, '&').trim();
+      if (src.startsWith('//'))         src = 'https:' + src;
+      else if (src.startsWith('../'))   src = 'https://www.gg.go.kr/1ingg/' + src.replace(/^(?:\.\.\/)+/, '');
+      else if (src.startsWith('/'))     src = ORIGIN + src;
+      else if (!/^https?:/i.test(src))  src = 'https://www.gg.go.kr/1ingg/bbs/' + src;
+      image = src;
+    }
+    if (!image) image = extractImageUrl(html, ORIGIN) || '';
+
+    let text = extractMainText(html, [
       /<div[^>]*class="[^"]*(?:view_cont|board_view|bbs_view|view_area)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
-    ]);
-    const image = extractImageUrl(html, ORIGIN);
-    if ((!text || text.length < 30) && !image) return null;
-    return { text: text || '', image, fields: extractDetailFields(text || '') };
+    ]) || '';
+    // 본문 div를 못 찾아 네비게이션 메뉴를 긁어온 경우 → 텍스트 폐기(좋은 REMARK를 덮어쓰지 않도록)
+    if (/본문\s*바로가기[\s\S]*주메뉴\s*바로가기/.test(text)) text = '';
+
+    if ((!text || text.length < 20) && !image) return null;
+    return { text, image, fields: extractDetailFields(text) };
   } catch { return null; }
 }
 
