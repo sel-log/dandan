@@ -1200,6 +1200,10 @@ async function loadPolicies(city, district){
     if(district){
       rows = rows.filter(r => !r.region_district || r.region_district === district);
     }
+    // 노이즈 제외: 직원 채용공고·사업 목록(인덱스성 글) 등 1인가구 혜택이 아닌 항목
+    rows = rows.filter(r => !isNoisePolicy(r));
+    // 중복 제거: 같은 제목+지역은 하나만
+    rows = dedupePolicies(rows);
 
     if(rows.length > 0){
       DB = rows.map(r => normalizePolicy(r));
@@ -1211,7 +1215,7 @@ async function loadPolicies(city, district){
       const json = await res.json();
 
       if(res.ok && json.success && json.policies?.length > 0){
-        DB = json.policies.map(r => normalizePolicy(r));
+        DB = json.policies.map(r => normalizePolicy(r)).filter(p => !isNoisePolicy({title:p.title}));
       } else {
         DB = [...DB_FALLBACK];
       }
@@ -1283,6 +1287,34 @@ function decodeEntities(s){
     .replace(/&amp;/g,'&');
 }
 
+// 포털 네비게이션/공통 boilerplate 마커 (인천 등 전자정부 페이지 머리말)
+const JUNK_MARKERS = ['메뉴 바로가기','본문 바로가기','이 누리집은 대한민국 공식','전자정부 누리집','날씨정보','온라인통합예약','데이터포털','정보공개포털','OpenAPI','선택언어 사이트로 이동','WorldWide','통합검색','첫단어보기','끝단어보기','회원가입','정책안내','정책방향','법령 및 조례','새창열림','Language','English','にほんご','简体中文'];
+function junkHits(text){
+  if(!text) return 0;
+  let n=0; for(const j of JUNK_MARKERS) if(text.includes(j)) n++;
+  return n;
+}
+// boilerplate 비율이 높으면(마커 3개+) 네비게이션 덤프로 판단 → 본문으로 쓰지 않음
+function isBoilerplate(text){ return junkHits(text) >= 3; }
+
+// 1인가구 혜택이 아닌 노이즈(직원 채용공고·사업 목록 인덱스 글 등) 판별
+const NOISE_TITLE = /(직원|기간제|계약직|공무직|인턴|상담사|매니저)\s*채용|채용\s*(공고|계획|안내)|채용$|사업\s*목록|사업목록|^목록$|결과\s*발표|선정\s*결과|합격자\s*발표/;
+function isNoisePolicy(r){
+  const t = (r.title||'').trim();
+  if(!t) return true;
+  return NOISE_TITLE.test(t);
+}
+// 같은 제목(+지역) 중복 제거 — 최신(updated_at) 1건만
+function dedupePolicies(rows){
+  const seen = new Map();
+  for(const r of rows){
+    const key = `${r.region_city||''}|${(r.title||'').replace(/\s+/g,'')}`;
+    const prev = seen.get(key);
+    if(!prev || (r.updated_at||'') > (prev.updated_at||'')) seen.set(key, r);
+  }
+  return [...seen.values()];
+}
+
 /* ── 포털 상세 라벨 → 단단 표준 필드 매핑 (서울·경기·인천·부산 공통) ── */
 const FIELD_MAP = (()=>{
   const g = {
@@ -1338,6 +1370,8 @@ function cleanContent(r){
   const title = decodeEntities((r.title||'').trim());
   const rawD  = decodeEntities((r.benefit_detail||'').trim());
   const rawS  = decodeEntities((r.benefit_summary||'').trim());
+  // 인천 등: benefit_detail이 사이트 네비게이션 boilerplate면 본문으로 쓰지 않음
+  const junkD = isBoilerplate(rawD), junkS = isBoilerplate(rawS);
   const pf    = parseFields(rawD) || parseFields(rawS) || {};
   const keys  = Object.keys(pf).filter(k=>k!=='_intro');
   const structured = keys.length >= 1;   // 구조화 라벨이 하나라도 잡히면 구조 데이터
@@ -1345,10 +1379,11 @@ function cleanContent(r){
   // 표준 상세 필드
   const fields = buildFields(pf);
 
-  // 핵심 내용(본문): 지원내용류 → _intro(제목과 다를 때)
+  // 핵심 내용(본문): 지원내용류 → _intro(제목과 다를 때). 단, boilerplate면 제외
   let benefit = pf['지원내용']||pf['활동내용']||pf['프로그램내용']||pf['내용']||pf['안내']||'';
-  if(!benefit && pf['_intro'] && _norm(pf['_intro'])!==_norm(title)) benefit = pf['_intro'];
-  if(!structured && !benefit && rawS && _norm(rawS)!==_norm(title)) benefit = rawS;
+  if(!benefit && pf['_intro'] && _norm(pf['_intro'])!==_norm(title) && !junkD) benefit = pf['_intro'];
+  if(!structured && !benefit && rawS && _norm(rawS)!==_norm(title) && !junkS) benefit = rawS;
+  if(isBoilerplate(benefit)) benefit = '';
   benefit = clip(benefit, 320);
 
   // 카드 한 줄 설명: 본문 우선, 없으면 모집인원·참가비 요약(지역은 이미 상단 표시)
@@ -1370,12 +1405,12 @@ function cleanContent(r){
   // 대상
   let target = (pf['지원대상']||pf['참여대상']||r.target_summary||'').trim();
 
-  // 자격조건: 구조화 데이터면 conditions_plain은 신뢰불가 → 비움. 아니면 짧고 깔끔한 것만.
+  // 자격조건: 구조화 데이터면 conditions_plain은 신뢰불가 → 비움. 아니면 짧고 깔끔한 것만(네비 쓰레기 제외).
   let conds=[];
   if(!structured){
     conds = (r.conditions_plain||[])
       .map(c=>String(c).trim())
-      .filter(c=> c && c.length>=4 && c.length<=50 && _norm(c)!==_norm(title))
+      .filter(c=> c && c.length>=4 && c.length<=50 && _norm(c)!==_norm(title) && junkHits(c)===0)
       .slice(0,5).map(c=>({i:'✅',t:c,e:''}));
   }
 

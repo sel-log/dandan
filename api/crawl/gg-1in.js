@@ -58,6 +58,8 @@ export default async function handler(req, res) {
         const id = `gg1in_${item.GNO2}`;
         const title = (item.SUBJECT || '').replace(/<[^>]+>/g, '').trim();
         if (!title) continue;
+        // 1인가구 혜택이 아닌 노이즈 제외 (직원 채용공고·사업 목록 인덱스 글 등)
+        if (/(직원|기간제|계약직|공무직|인턴|상담사|매니저)\s*채용|채용\s*(공고|계획|안내)|채용$|사업\s*목록|사업목록|^목록$|선정\s*결과|합격자\s*발표/.test(title)) continue;
 
         const remark = item.REMARK || '';
         const dateMatch = remark.match(/신청기간[^\d]*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})[^\d~]*[~～]\s*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})/);
