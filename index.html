@@ -1243,6 +1243,19 @@ function regionLabel(r){
   return city;
 }
 
+// 신청 링크 교정 (특히 경기: 깨진 board.do/boardIdx → boardView.do/bIdx)
+function fixApplyUrl(r){
+  let u = (r.apply_url || '').trim();
+  if(r.region_city === '경기'){
+    const m = String(r.id||'').match(/gg1in_(\d+)/);
+    const broken = !u || /\/board\.do/.test(u) || /boardIdx=/.test(u);
+    if(m && broken){
+      u = `https://www.gg.go.kr/1ingg/bbs/boardView.do?bsIdx=873&menuId=4112&bIdx=${m[1]}`;
+    }
+  }
+  return u || null;
+}
+
 // 진행/신청 방식 원문 → 한글 (대면/비대면/온라인 구분, 알 수 없는 긴 값은 숨김='')
 function formatMethod(raw){
   if(!raw || raw==='-') return '';
@@ -1349,8 +1362,10 @@ function cleanContent(r){
   }
   summary = clip(summary, 80);
 
-  // 진행 방식(상단 박스용)
-  const method = formatMethod(pf['진행방법'] || pf['진행 방식'] || r.apply_method);
+  // 진행 방식(상단 박스용): 실제 파싱된 진행방법만 사용. apply_method='both'(크롤러 기본 추측)는 숨김
+  let method = '';
+  if(pf['진행방법'] || pf['진행 방식']) method = formatMethod(pf['진행방법'] || pf['진행 방식']);
+  else if(r.apply_method && r.apply_method !== 'both') method = formatMethod(r.apply_method);
 
   // 대상
   let target = (pf['지원대상']||pf['참여대상']||r.target_summary||'').trim();
@@ -1388,7 +1403,7 @@ function normalizePolicy(r){
     period:   r.apply_end ? '~ '+formatDeadline(r.apply_end) : '상시',
     method:   c.method,
     target:   c.target,
-    apply_url: r.apply_url || null,
+    apply_url: fixApplyUrl(r),
   };
 }
 

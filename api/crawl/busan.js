@@ -136,12 +136,33 @@ function extractGu(text) {
 async function fetchDetail(url) {
   try {
     const html = await fetchText(url, { timeout: 8000 });  // EUC-KR 자동
-    const text = extractMainText(html, [
+    const tableText = extractFieldTable(html);   // 구조화 표(센터명/장소/회기/…) — 본문이 이미지여도 표는 텍스트
+    const bodyText = extractMainText(html, [
       /<div[^>]*class="[^"]*(?:program_view|view_cont|detail|cont)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
-    ]);
-    if (!text || text.length < 30) return null;
-    return { text, fields: extractDetailFields(text) };
+    ]) || '';
+    const combined = [tableText, bodyText].filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
+    if (!combined || combined.length < 10) return null;
+    return { text: combined, fields: extractDetailFields(combined) };
   } catch { return null; }
+}
+
+/** 상세 표의 라벨/값 셀 추출 → "라벨 값 라벨 값 …" (th·td 무관, 알려진 라벨만 페어링) */
+const BUSAN_TABLE_LABELS = new Set(['센터명','기관명','장소','회기','진행상태','성별','연령별','진행방법','모집인원','참가비','수강료','이용료','신청기간','모집기간','문의','문의처','대상','지원대상','신청방법','접수방법']);
+function extractFieldTable(html) {
+  if (!html) return '';
+  const cells = [];
+  const cellRe = /<(th|td)[^>]*>([\s\S]*?)<\/\1>/gi;
+  let m;
+  while ((m = cellRe.exec(html))) {
+    cells.push(stripHtml(m[2]).replace(/\s+/g, ' ').trim());
+  }
+  const out = [];
+  for (let i = 0; i < cells.length - 1; i++) {
+    if (BUSAN_TABLE_LABELS.has(cells[i]) && cells[i + 1] && !BUSAN_TABLE_LABELS.has(cells[i + 1])) {
+      out.push(cells[i] + ' ' + cells[i + 1]);
+    }
+  }
+  return out.join(' ');
 }
 
 function enrichWithDetail(p, detail) {

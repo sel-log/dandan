@@ -66,7 +66,7 @@ export default async function handler(req, res) {
 
         const apply_url = item.ADD_COLUMN06
           ? item.ADD_COLUMN06.trim()
-          : `${DETAIL_BASE}?bsIdx=873&menuId=4112&boardIdx=${item.GNO2}`;
+          : `${DETAIL_VIEW}?bsIdx=873&menuId=4112&bIdx=${item.GNO2}`;
 
         const district = normalizeDistrict('경기', item.WRITER_NAME);
 
