@@ -15,8 +15,8 @@ const DETAIL_BASE = 'https://www.gg.go.kr/1ingg/bbs/board.do';
 const ORIGIN       = 'https://www.gg.go.kr';
 const MAX_PAGES    = 60;  // 더 깊이 스캔 (마감 건이 많아 접수중이 뒤 페이지에도 섞임)
 const PAGE_CONC    = 6;   // 목록 페이지 병렬 fetch
-const DETAIL_LIMIT = 150; // 상세 본문·이미지 크롤링 상한
-const DETAIL_CONC  = 10;  // 상세 동시 요청 수
+const DETAIL_LIMIT = 220; // 상세 본문·이미지 크롤링 상한 (포털 전체 ~198개 커버)
+const DETAIL_CONC  = 12;  // 상세 동시 요청 수
 
 export default async function handler(req, res) {
   if (req.headers['x-cron-secret'] !== process.env.CRON_SECRET) {
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
       const list = json.resultList || [];
 
       for (const item of list) {
-        if (item.ADD_COLUMN09 === '마감') continue;  // 포털 마감 플래그 제외
+        const isClosed = item.ADD_COLUMN09 === '마감';  // 마감도 수집하되 마감 표시(전 시군구 데이터 확보)
 
         const id = `gg1in_${item.GNO2}`;
         const title = (item.SUBJECT || '').replace(/<[^>]+>/g, '').trim();
@@ -64,8 +64,9 @@ export default async function handler(req, res) {
 
         const remark = item.REMARK || '';
         const dateMatch = remark.match(/신청기간[^\d]*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})[^\d~]*[~～]\s*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})/);
-        // 신청기간이 명시된 경우만 마감일로 사용. 없으면 null(상시) — 글 작성일을 마감일로 쓰지 않음
-        const apply_end = dateMatch ? parseDate(dateMatch[2]) : null;
+        // 신청기간 명시되면 마감일로. 없고 마감 플래그면 작성일(과거)로 마감 처리. 둘 다 없으면 null(상시)
+        const apply_end = dateMatch ? parseDate(dateMatch[2])
+                        : (isClosed ? (parseDate(item.WRITE_DATE2) || '2020-01-01') : null);
 
         const apply_url = item.ADD_COLUMN06
           ? item.ADD_COLUMN06.trim()
@@ -118,8 +119,14 @@ export default async function handler(req, res) {
     return true;
   });
 
-  // ── 상세 본문 크롤링 ──
+  // ── 상세 본문 크롤링 (접수중·상시 우선, 마감은 REMARK로 충분) ──
   let detailOk = 0;
+  const _today = new Date().toISOString().slice(0, 10);
+  deduped.sort((a, b) => {
+    const ao = (!a.policy.apply_end || a.policy.apply_end >= _today) ? 0 : 1;
+    const bo = (!b.policy.apply_end || b.policy.apply_end >= _today) ? 0 : 1;
+    return ao - bo;
+  });
   const targets = deduped.slice(0, DETAIL_LIMIT);
   await mapWithConcurrency(targets, DETAIL_CONC, async (r) => {
     const detail = await fetchDetail(r.gno2);

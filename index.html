@@ -1366,9 +1366,17 @@ function mapBulletLabel(L){
   if(/구분|카테고리|기관명|담당자/.test(s)) return null;        // 서울 메타데이터 — 경계로만 사용
   return null;
 }
-const _SK_KW = ['활동일시','활동내용','프로그램내용','진행방법','진행장소','진행문의','신청방법','접수방법','참여방법','모집인원','참여인원','참여대상','지원대상','모집대상','이용대상','대상연령','신청기간','모집기간','접수기간','운영기간','진행기간','참가비','참여비','수강료','이용료','연락처','문의처','일시','일정','대상','장소','정원','인원','회차','회기','문의','내용','안내','구분','카테고리','기관명','담당자'].sort((a,b)=>b.length-a.length);
+const _SK_KW = ['활동일시','활동내용','프로그램내용','진행방법','진행장소','진행문의','신청방법','접수방법','참여방법','모집인원','참여인원','참여대상','지원대상','모집대상','이용대상','대상연령','신청기간','모집기간','접수기간','운영기간','운영시간','진행기간','참가비용','참가비','참여비','수강료','이용료','연락처','문의처','회기수','일시','일정','대상','장소','정원','인원','회차','회기','문의','내용','안내','구분','카테고리','기관명','담당자'].sort((a,b)=>b.length-a.length);
 const _SK_RE = new RegExp('(?:^|[^가-힣A-Za-z])(' + _SK_KW.join('|') + ')\\s*(?:\\([^)]*\\))?\\s*[:：]\\s*', 'gu');
-const _SK_BULLET = /[✅✔☑▶▷◆◇●○■□★☆🚩📍👤💸💰📅📦🔗🍳🎁🗓💡📌▪▫🎈🔔]/u;
+const _SK_BULLET = /[✅✔☑▶▷◆◇●○■□★☆🚩📍👤💸💰📅📦🔗🍳🎁🗓💡📌▪▫🎈🔔🌱]/u;
+// 장소 값에서 주소 뒤에 붙은 프로그램 설명 텍스트 제거 → 주소만 (서울 진행장소 등)
+function _cleanPlace(v){
+  if(!/(특별시|광역시|[가-힣]{2,}시|[가-힣]{2,}구|[가-힣]+로\b|[가-힣]+길\b|\d+\s*층|\d+\s*호)/.test(v)) return v;
+  const isAddr = t => /\d/.test(t) || /[()]/.test(t) || /(시|도|구|군|읍|면|동|리|로|길|가|층|호|관|실|홀|센터|원|회관|청사|빌딩|타워|아파트|상가|마을)$/.test(t);
+  const out=[];
+  for(const t of v.split(/\s+/)){ if(isAddr(t)) out.push(t); else break; }
+  return out.length ? out.join(' ') : v;
+}
 function _skCleanVal(v){
   v = v.split(_SK_BULLET)[0];          // 다음 불릿 이후 잘라냄 (➡ 화살표는 보존)
   v = v.split(/\s*※/)[0];              // ※ 노트 제거
@@ -1382,7 +1390,7 @@ function parseBulletFields(text){
   while((m=_SK_RE.exec(text))) hits.push({label:m[1], vs:m.index+m[0].length, ks:m.index});
   if(!hits.length) return null;
   const raw={};
-  const intro = text.slice(0, hits[0].ks).replace(/\s+/g,' ').trim();
+  const intro = text.slice(0, hits[0].ks).replace(/\s+/g,' ').trim().replace(/\s*\d{1,2}\s*[.)]\s*$/,'').trim();
   for(let i=0;i<hits.length;i++){
     const ve = i+1<hits.length ? hits[i+1].ks : text.length;
     const v  = _skCleanVal(text.slice(hits[i].vs, ve));
@@ -1405,6 +1413,7 @@ function buildFields(raw){
     let val = v.replace(/지도\s*보기|바로\s*가기/g,'').replace(/\s+/g,' ').trim();
     if(canon==='진행 방식') val = formatMethod(val) || val;
     if(canon==='신청 방법') val = formatMethod(val) || val;
+    if(canon==='장소')      val = _cleanPlace(val);
     if(canon==='대상')      val = val.replace(/\s*\/\s*성별무관/,'').trim();
     if(/^(성별무관|성별\s*무관|연령무관|연령\s*무관|무관|해당없음|없음|미정|-|0)$/.test(val)) continue;
     std[canon] = clip(val, 2000);   // 줄이지 않고 전체 노출(상세 영역이 유동적으로 늘어남) — 비정상 길이만 안전 컷
