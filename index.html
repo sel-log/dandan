@@ -2584,6 +2584,10 @@ function toggleNotif(key){
 }
 
 async function logout(){
+  // dev 모드 해제
+  if(user?.provider === 'dev'){
+    localStorage.removeItem('dandan_dev_mode');
+  }
   removeSavedLocation();
   try { await supa.auth.signOut(); } catch(e) { console.warn('로그아웃 실패:', e.message); }
   user = null;
@@ -2630,8 +2634,30 @@ function initCitySelects(){
 }
 initCitySelects();
 (async () => {
+  // ─────────────────────────────────────
+  // 🛠 개발자 모드 — URL에 ?dev=dandan2026 추가 시 자동 로그인
+  // (배포 전 반드시 제거할 것)
+  // ─────────────────────────────────────
+  const devParam = new URLSearchParams(window.location.search).get('dev');
+  if(devParam === 'dandan2026'){
+    user = {
+      nickname:     '테스터',
+      provider:     'dev',
+      supabase_uid: null, // Supabase 없이 로컬 세션
+    };
+    // localStorage에 표시 (새로고침해도 유지)
+    localStorage.setItem('dandan_dev_mode', '1');
+    console.log('🛠 개발자 모드 활성화 — 모든 기능에 접근 가능');
+  } else if(localStorage.getItem('dandan_dev_mode') === '1'){
+    // 한번 들어오면 새로고침해도 유지
+    user = { nickname: '테스터', provider: 'dev', supabase_uid: null };
+  }
+  // ─────────────────────────────────────
+
   // 기존 Supabase 세션 복원 (새로고침해도 로그인 유지)
+  // dev 모드일 땐 건너뜀
   try {
+    if(user?.provider === 'dev') throw new Error('dev mode active');
     const { data: { session } } = await supa.auth.getSession();
     if(session?.user){
       // 프로필 불러오기
