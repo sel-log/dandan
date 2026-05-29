@@ -2113,7 +2113,16 @@ const REGION_SOON_NOTICE = `
 function renderFeed(){
   const list = document.getElementById('feed-list');
   if(!list) return;
-  let d = sortMode==='deadline'?[...DB].sort((a,b)=>a.dday-b.dday):[...DB].sort((a,b)=>b.match-a.match);
+  const isExpired = p => typeof p.dday === 'number' && p.dday < 0;
+  let d = [...DB].sort((a,b)=>{
+    const ax = isExpired(a), bx = isExpired(b);
+    if(ax !== bx) return ax ? 1 : -1;            // 접수중·상시 먼저, 마감은 맨 뒤
+    if(sortMode==='deadline'){
+      // 마감임박순: 유효 건은 D-day 가까운 순(상시=999는 뒤), 마감 건은 최근 마감 순
+      return ax ? (b.dday - a.dday) : (a.dday - b.dday);
+    }
+    return b.match - a.match;                      // 추천순
+  });
   list.innerHTML = d.map(p=>renderCard(p)).join('');
   const cnt = d.length;
   ['mc','mb'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=cnt; });
