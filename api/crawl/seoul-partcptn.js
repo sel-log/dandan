@@ -13,7 +13,7 @@
 
 import {
   fetchWithRetry, fetchText, upsertPolicies, mapCategory, normalizeDistrict,
-  stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency,
+  stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency, extractImageUrl,
 } from './_shared.js';
 
 const BASE = 'https://1in.seoul.go.kr';
@@ -24,8 +24,8 @@ const LIST_ENDPOINTS = [
 ];
 const MAX_PAGES    = 40;  // 최신 400건 (접수중 프로그램은 최근 등록분에 몰림)
 const PAGE_CONC    = 8;   // 목록 페이지 병렬 fetch
-const DETAIL_LIMIT = 80;
-const DETAIL_CONC  = 6;
+const DETAIL_LIMIT = 250; // 접수중 전체 커버 (상세 본문·이미지)
+const DETAIL_CONC  = 10;
 
 export default async function handler(req, res) {
   if (req.headers['x-cron-secret'] !== process.env.CRON_SECRET) {
@@ -131,6 +131,7 @@ function parseList(html) {
         category: mapCategory(title),
         benefit_summary: title,
         benefit_detail: '',
+        image_url: '',
         conditions_plain: [],
         apply_steps: [],
         apply_method: 'both',
@@ -159,16 +160,18 @@ async function fetchDetail(applyUrl) {
     const text = extractMainText(html, [
       /<div[^>]*class="[^"]*(?:view_cont|view_area|cont_view|board_view|prog_view)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
     ]);
-    if (!text || text.length < 30) return null;
-    return { text, fields: extractDetailFields(text) };
+    const image = extractImageUrl(html, BASE);
+    if ((!text || text.length < 30) && !image) return null;
+    return { text: text || '', image, fields: extractDetailFields(text || '') };
   } catch { return null; }
 }
 
 function enrichWithDetail(p, detail) {
-  const { text, fields } = detail;
+  const { text, fields, image } = detail;
+  if (image) p.image_url = image;
   if (text) p.benefit_detail = text.slice(0, 1000);
-  if (!p.benefit_summary || p.benefit_summary === p.title) p.benefit_summary = text.slice(0, 200);
-  const conds = textToConditions(text);
+  if (text && (!p.benefit_summary || p.benefit_summary === p.title)) p.benefit_summary = text.slice(0, 200);
+  const conds = text ? textToConditions(text) : [];
   if (conds.length) p.conditions_plain = conds;
   if (fields.end) { p.apply_end = fields.end; p.is_recurring = false; }
   if (fields.target) p.target_summary = fields.target.slice(0, 80);

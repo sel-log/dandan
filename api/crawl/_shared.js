@@ -157,12 +157,30 @@ export function stripHtml(html) {
 }
 
 /**
- * 상세 HTML에서 본문 영역을 best-effort 추출.
- * 게시판마다 컨테이너가 다르므로 흔한 selector를 순서대로 시도하고,
- * 못 찾으면 <body> 전체 텍스트로 폴백한다.
+ * 상세 HTML에서 본문 포스터/안내 이미지의 절대 URL을 best-effort 추출.
+ * 로고·아이콘·버튼·QR·공유 이미지 등은 제외. 첫 콘텐츠 이미지를 반환.
+ * @param {string} html
+ * @param {string} baseOrigin 예) 'https://www.busan1.or.kr'
  */
-export function extractMainText(html, customRegexes = []) {
+export function extractImageUrl(html, baseOrigin = '') {
   if (!html) return '';
+  const imgRe = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  let m;
+  while ((m = imgRe.exec(html))) {
+    let src = (m[1] || '').trim();
+    if (!src || /^data:/i.test(src)) continue;
+    // 비콘텐츠 이미지 제외
+    if (/logo|icon|btn|button|blank|spacer|pixel|bullet|arrow|share|sns|facebook|twitter|kakao|naver|qr|footer|header|nav|loading|\.svg(\?|$)/i.test(src)) continue;
+    // 절대경로화
+    if (src.startsWith('//')) src = 'https:' + src;
+    else if (src.startsWith('/')) { if (!baseOrigin) continue; src = baseOrigin + src; }
+    else if (!/^https?:\/\//i.test(src)) continue;
+    return src.replace(/&amp;/g, '&');
+  }
+  return '';
+}
+
+
   const candidates = [
     ...customRegexes,
     /<div[^>]*class="[^"]*(?:bbs|board)[-_]?(?:view|content|cont|detail)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,

@@ -10,14 +10,14 @@
 
 import {
   fetchText, upsertPolicies, mapCategory, parseDate,
-  stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency,
+  stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency, extractImageUrl,
 } from './_shared.js';
 
 const ORIGIN = 'http://www.busan1.or.kr';
 const LIST   = `${ORIGIN}/program_01.html`;
 const MAX_PAGES    = 10;
-const DETAIL_LIMIT = 60;
-const DETAIL_CONC  = 5;
+const DETAIL_LIMIT = 120;
+const DETAIL_CONC  = 10;
 
 // 부산 군·구 (긴 이름 우선 매칭: 부산진구가 진구보다 먼저)
 const BUSAN_GU = [
@@ -108,6 +108,7 @@ function parseList(html, page) {
         category: mapCategory(title),
         benefit_summary: title,
         benefit_detail: '',
+        image_url: '',
         conditions_plain: [],
         apply_steps: [],
         apply_method: 'both',
@@ -140,9 +141,10 @@ async function fetchDetail(url) {
     const bodyText = extractMainText(html, [
       /<div[^>]*class="[^"]*(?:program_view|view_cont|detail|cont)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
     ]) || '';
+    const image = extractImageUrl(html, ORIGIN);   // 포스터 이미지
     const combined = [tableText, bodyText].filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
-    if (!combined || combined.length < 10) return null;
-    return { text: combined, fields: extractDetailFields(combined) };
+    if (!combined && !image) return null;
+    return { text: combined, image, fields: extractDetailFields(combined) };
   } catch { return null; }
 }
 
@@ -166,7 +168,8 @@ function extractFieldTable(html) {
 }
 
 function enrichWithDetail(p, detail) {
-  const { text, fields } = detail;
+  const { text, fields, image } = detail;
+  if (image) p.image_url = image;
   if (text) p.benefit_detail = text.slice(0, 1000);
   if (!p.benefit_summary || p.benefit_summary === p.title) p.benefit_summary = text.slice(0, 200);
   const conds = textToConditions(text);

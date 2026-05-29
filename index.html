@@ -1247,15 +1247,12 @@ function regionLabel(r){
   return city;
 }
 
-// 신청 링크 교정 (특히 경기: 깨진 board.do/boardIdx → boardView.do/bIdx)
+// 신청 링크 교정 (경기: 외부 ADD_COLUMN06 링크가 깨진 경우가 많아 항상 gg 공식 게시글로)
 function fixApplyUrl(r){
-  let u = (r.apply_url || '').trim();
+  let u = decodeEntities((r.apply_url || '').trim());
   if(r.region_city === '경기'){
     const m = String(r.id||'').match(/gg1in_(\d+)/);
-    const broken = !u || /\/board\.do/.test(u) || /boardIdx=/.test(u);
-    if(m && broken){
-      u = `https://www.gg.go.kr/1ingg/bbs/boardView.do?bsIdx=873&menuId=4112&bIdx=${m[1]}`;
-    }
+    if(m) return `https://www.gg.go.kr/1ingg/bbs/boardView.do?bsIdx=873&menuId=4112&bIdx=${m[1]}`;
   }
   return u || null;
 }
@@ -1384,6 +1381,11 @@ function cleanContent(r){
   if(!benefit && pf['_intro'] && _norm(pf['_intro'])!==_norm(title) && !junkD) benefit = pf['_intro'];
   if(!structured && !benefit && rawS && _norm(rawS)!==_norm(title) && !junkS) benefit = rawS;
   if(isBoilerplate(benefit)) benefit = '';
+  // 인천 등 접두 노이즈 제거 ("인천 1인가구 통합검색 상세보기 …")
+  benefit = benefit
+    .replace(/^[\s·]*((인천|서울|경기|부산)?\s*1인가구\s*)?통합검색\s*(상세보기)?\s*/,'')
+    .replace(/^[\s·]*상세\s*보기\s*/,'')
+    .replace(/\s+/g,' ').trim();
   benefit = clip(benefit, 320);
 
   // 카드 한 줄 설명: 본문 우선, 없으면 모집인원·참가비 요약(지역은 이미 상단 표시)
@@ -1439,6 +1441,7 @@ function normalizePolicy(r){
     method:   c.method,
     target:   c.target,
     apply_url: fixApplyUrl(r),
+    image:    r.image_url || null,
   };
 }
 
@@ -2450,6 +2453,11 @@ function openDetail(id){
       <div class="ib"><div class="ib-lbl">신청 기간</div><div class="ib-val">${p.period||'상시'}</div></div>
       ${methodTxt ? `<div class="ib"><div class="ib-lbl">진행 방식</div><div class="ib-val">${methodTxt}</div></div>` : ''}
     </div>
+    ${p.image ? `<div class="ds" style="margin-bottom:4px;">
+      <img src="${p.image}" alt="안내 포스터" referrerpolicy="no-referrer" loading="lazy"
+        onerror="this.parentElement.style.display='none'"
+        style="width:100%;border-radius:var(--r-lg);border:1px solid var(--border);display:block;" />
+    </div>` : ''}
     ${benefit ? `<div class="hl"><div class="hl-lbl">핵심 내용</div><div class="hl-val">${benefit}</div></div>` : ''}
     ${info.length ? `
     <div class="ds">

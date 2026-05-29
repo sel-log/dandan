@@ -10,7 +10,7 @@
 
 import {
   fetchText, upsertPolicies, mapCategory, parseDate,
-  stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency,
+  stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency, extractImageUrl,
 } from './_shared.js';
 
 const ORIGIN = 'https://www.incheon.go.kr';
@@ -18,8 +18,8 @@ const LIST_PAGES = [
   'https://www.incheon.go.kr/1in/OHH020107',  // 지원사업 (전체 16건 SSR)
 ];
 const DETAIL_BASE  = `${ORIGIN}/fnct/1in/searchListPopup?oneHouseHoldId=`;
-const DETAIL_LIMIT = 50;
-const DETAIL_CONC  = 5;
+const DETAIL_LIMIT = 120;
+const DETAIL_CONC  = 10;
 
 // 인천 군·구 (긴 이름 우선)
 const INCHEON_GU = [
@@ -104,6 +104,7 @@ function basePolicy(id, title, apply_url, gu) {
     category: mapCategory(title),
     benefit_summary: title,
     benefit_detail: '',
+    image_url: '',
     conditions_plain: [],
     apply_steps: [],
     apply_method: 'both',
@@ -128,16 +129,18 @@ async function fetchDetail(url) {
   try {
     const html = await fetchText(url, { timeout: 8000 });
     const text = extractMainText(html);
-    if (!text || text.length < 20) return null;
-    return { text, fields: extractDetailFields(text) };
+    const image = extractImageUrl(html, ORIGIN);
+    if ((!text || text.length < 20) && !image) return null;
+    return { text: text || '', image, fields: extractDetailFields(text || '') };
   } catch { return null; }
 }
 
 function enrichWithDetail(p, detail) {
-  const { text, fields } = detail;
+  const { text, fields, image } = detail;
+  if (image) p.image_url = image;
   if (text) p.benefit_detail = text.slice(0, 1000);
-  if (!p.benefit_summary || p.benefit_summary === p.title) p.benefit_summary = text.slice(0, 200);
-  const conds = textToConditions(text);
+  if (text && (!p.benefit_summary || p.benefit_summary === p.title)) p.benefit_summary = text.slice(0, 200);
+  const conds = text ? textToConditions(text) : [];
   if (conds.length) p.conditions_plain = conds;
   if (fields.end) { p.apply_end = fields.end; p.is_recurring = false; }
   if (fields.target) p.target_summary = fields.target.slice(0, 80);

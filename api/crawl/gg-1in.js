@@ -6,16 +6,17 @@
 
 import {
   fetchWithRetry, fetchText, upsertPolicies, mapCategory, parseDate, normalizeDistrict,
-  stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency,
+  stripHtml, extractMainText, extractDetailFields, textToConditions, mapWithConcurrency, extractImageUrl,
 } from './_shared.js';
 
 const API         = 'https://www.gg.go.kr/1ingg/bbs/ajax/boardList.do';
 const DETAIL_VIEW = 'https://www.gg.go.kr/1ingg/bbs/boardView.do';
 const DETAIL_BASE = 'https://www.gg.go.kr/1ingg/bbs/board.do';
+const ORIGIN       = 'https://www.gg.go.kr';
 const MAX_PAGES    = 60;  // 더 깊이 스캔 (마감 건이 많아 접수중이 뒤 페이지에도 섞임)
 const PAGE_CONC    = 6;   // 목록 페이지 병렬 fetch
-const DETAIL_LIMIT = 80;  // 상세 본문 크롤링 상한 (타임아웃 방지)
-const DETAIL_CONC  = 6;   // 상세 동시 요청 수
+const DETAIL_LIMIT = 150; // 상세 본문·이미지 크롤링 상한
+const DETAIL_CONC  = 10;  // 상세 동시 요청 수
 
 export default async function handler(req, res) {
   if (req.headers['x-cron-secret'] !== process.env.CRON_SECRET) {
@@ -86,6 +87,7 @@ export default async function handler(req, res) {
             category: mapCategory(title),
             benefit_summary: stripHtml(remark).slice(0, 200) || title,
             benefit_detail: stripHtml(remark).slice(0, 500),
+            image_url: extractImageUrl(remark, ORIGIN),
             conditions_plain: parseConditionsFromRemark(remark),
             apply_steps: [],
             apply_method: 'both',
@@ -144,21 +146,23 @@ async function fetchDetail(gno2) {
     const text = extractMainText(html, [
       /<div[^>]*class="[^"]*(?:view_cont|board_view|bbs_view|view_area)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i,
     ]);
-    if (!text || text.length < 30) return null;
-    return { text, fields: extractDetailFields(text) };
+    const image = extractImageUrl(html, ORIGIN);
+    if ((!text || text.length < 30) && !image) return null;
+    return { text: text || '', image, fields: extractDetailFields(text || '') };
   } catch { return null; }
 }
 
 /** 상세 결과를 policy에 병합 (기존 값이 빈약할 때만 보강) */
 function enrichWithDetail(p, detail) {
-  const { text, fields } = detail;
+  const { text, fields, image } = detail;
+  if (image && !p.image_url) p.image_url = image;
   if (text && text.length > (p.benefit_detail || '').length) {
     p.benefit_detail = text.slice(0, 1000);
   }
   if ((!p.benefit_summary || p.benefit_summary === p.title) && text) {
     p.benefit_summary = text.slice(0, 200);
   }
-  const conds = textToConditions(text);
+  const conds = text ? textToConditions(text) : [];
   if (conds.length > (p.conditions_plain || []).length) p.conditions_plain = conds;
   if (fields.end) p.apply_end = fields.end;
   if (fields.target) p.target_summary = fields.target.slice(0, 80);
