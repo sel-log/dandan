@@ -22,7 +22,8 @@ const LIST_ENDPOINTS = [
   '/front/partcptn/partcptnList.do',
   '/front/partcptn/partcptnListPage.do',
 ];
-const MAX_PAGES    = 30;  // 최대 300건 (최신순이라 진행중 프로그램은 앞쪽에 몰림)
+const MAX_PAGES    = 40;  // 최신 400건 (접수중 프로그램은 최근 등록분에 몰림)
+const PAGE_CONC    = 8;   // 목록 페이지 병렬 fetch
 const DETAIL_LIMIT = 80;
 const DETAIL_CONC  = 6;
 
@@ -43,20 +44,18 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, portal: '서울시 씽글벙글 참여프로그램', count: 0, note: '목록 엔드포인트 미발견 (AJAX URL 확인 필요)' });
   }
 
-  // 2) 페이지 순회
+  // 2) 페이지 병렬 순회 (마감 건이 섞여도 끊기지 않게 MAX_PAGES까지 모두 수집)
   const results = [];
-  for (let page = 1; page <= MAX_PAGES; page++) {
+  const pageNos = Array.from({ length: MAX_PAGES }, (_, i) => i + 1);
+  await mapWithConcurrency(pageNos, PAGE_CONC, async (page) => {
     try {
       const html = await fetchText(`${BASE}${endpoint}?miv_pageNo=${page}`, { timeout: 9000 });
       const items = parseList(html);
-      if (!items.length) break;
       results.push(...items);
-      if (items.length < 10) break;
     } catch (e) {
       console.warn(`서울 참여프로그램 크롤러 오류 [p${page}]:`, e.message);
-      break;
     }
-  }
+  });
 
   // 중복 제거
   const seen = new Set();
@@ -66,15 +65,19 @@ export default async function handler(req, res) {
     return true;
   });
 
+  // 마감 제외: 접수 종료일이 지난 것 제외 (상시/미정은 유지)
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const open = deduped.filter(p => !p.apply_end || new Date(p.apply_end) >= today);
+
   // 3) 상세 본문 크롤링
   let detailOk = 0;
-  await mapWithConcurrency(deduped.slice(0, DETAIL_LIMIT), DETAIL_CONC, async (p) => {
+  await mapWithConcurrency(open.slice(0, DETAIL_LIMIT), DETAIL_CONC, async (p) => {
     const detail = await fetchDetail(p.apply_url);
     if (detail) { enrichWithDetail(p, detail); detailOk++; }
   });
 
-  if (deduped.length) {
-    try { await upsertPolicies(deduped); }
+  if (open.length) {
+    try { await upsertPolicies(open); }
     catch (e) { return res.status(500).json({ error: e.message }); }
   }
 
@@ -82,7 +85,8 @@ export default async function handler(req, res) {
     success: true,
     portal: '서울시 씽글벙글 참여프로그램',
     endpoint,
-    count: deduped.length,
+    scanned: deduped.length,
+    count: open.length,
     detail_enriched: detailOk,
   });
 }
@@ -114,8 +118,7 @@ function parseList(html) {
       const recvDates = (stripHtml(recvCell).match(/\d{4}-\d{1,2}-\d{1,2}/g) || []);
       const apply_start = recvDates[0] ? toIso(recvDates[0]) : null;
       const apply_end   = recvDates.length >= 2 ? toIso(recvDates[1]) : null;  // 'start ~ ' (open)이면 null
-      // 마감 제외 (접수 종료일이 지난 것)
-      if (apply_end && new Date(apply_end) < new Date()) continue;
+      // (마감 제외는 수집 후 일괄 적용 — 페이징이 마감 건에 일찍 끊기지 않도록)
 
       items.push({
         id,
