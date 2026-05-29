@@ -76,43 +76,31 @@ export default async function handler(req, res) {
   });
 }
 
-/** 목록 테이블 파싱: 번호 / 센터명 / 프로그램명 / 접수기간 / 진행기간 / 모집인원 / 진행상태 */
+/** 목록 파싱 — 상세 링크(?query=view&id=N) 기준 (테이블/리스트 구조 무관) */
 function parseList(html, page) {
   const items = [];
-  const tbody = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
-  const scope = tbody ? tbody[1] : html;
-  const rows  = scope.match(/<tr[\s\S]*?<\/tr>/gi) || [];
-
-  for (const row of rows) {
+  const linkRe = /<a[^>]*href="[^"]*\?query=view&(?:amp;)?id=(\d+)[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = linkRe.exec(html)) !== null) {
     try {
-      // 상세 id 추출 (href / onclick 양쪽 대응)
-      const idMatch = row.match(/(?:query=view[^"']*?id=|[?&]id=|view\(['"]?)(\d+)/i);
-      if (!idMatch) continue;
-      const id = idMatch[1];
-
-      const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(m => stripHtml(m[1]));
-      if (tds.length < 3) continue;
-
-      const aMatch = row.match(/<a[^>]*>([\s\S]*?)<\/a>/i);
-      const center = tds[1] || '';
-      const title  = (aMatch ? stripHtml(aMatch[1]) : '') || tds[2] || '';
+      const id = m[1];
+      const title = stripHtml(m[2]);
       if (!title) continue;
 
-      const status = tds[tds.length - 1] || '';
-      // 부산은 프로그램이 띄엄띄엄 올라오므로 마감 건도 수집(앱에서 '마감' 표시).
+      // 센터명(=구)은 링크 직전, 접수기간은 링크 직후에 위치
+      const before = stripHtml(html.slice(Math.max(0, m.index - 60), m.index));
+      const after  = stripHtml(html.slice(m.index + m[0].length, m.index + m[0].length + 200));
 
-      // 접수기간 = tds[3] (번호0/센터1/제목2/접수기간3/진행기간4/모집5/상태6)
-      const dates = (tds[3] || '').match(/\d{4}[.\-]\d{1,2}[.\-]\d{1,2}/g);
-      const apply_start = dates && dates[0] ? parseDate(dates[0]) : null;
-      const apply_end   = dates && dates.length >= 2 ? parseDate(dates[1]) : (dates && dates[0] ? parseDate(dates[0]) : null);
+      const gu = extractGu(before.slice(-50)) || extractGu(title);
+      const dates = after.match(/\d{4}[.\-]\d{1,2}[.\-]\d{1,2}/g) || [];
+      const apply_start = dates[0] ? parseDate(dates[0]) : null;
+      const apply_end   = dates[1] ? parseDate(dates[1]) : (dates[0] ? parseDate(dates[0]) : null);
 
-      const gu = extractGu(center) || extractGu(title);
       const viewUrl = `${LIST}?query=view&id=${id}&page=${page}`;
-
       items.push({
         id: `busan_${id}`,
         title,
-        org: center ? `부산광역시 ${center}` : '부산광역시',
+        org: gu ? `부산광역시 ${gu}` : '부산광역시',
         org_type: 'local_gov',
         source_portal: 'http://www.busan1.or.kr/',
         region_city: '부산',
