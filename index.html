@@ -1239,9 +1239,11 @@ async function loadPolicies(city, district){
 
     let rows = [ ...((!reg.error && reg.data) ? reg.data : []),
                  ...((!nat.error && nat.data) ? nat.data : []) ];
-    // 시군구 선택 시에도 같은 광역의 다른 시 데이터를 '숨기지' 않음.
-    // (경기 데이터가 전부 특정 시로 태깅돼 있어, 숨기면 피드가 비어버림)
-    // 대신 renderFeed가 선택 시군구 > 광역 공통 > 전국 > 다른 시 순으로 정렬해 노출.
+    // 시군구 선택 시: 그 시군구 OR 광역 공통(district 없음)만 (B안 — 다른 시는 제외).
+    // 전국 행은 region_district가 없어 항상 통과.
+    if(district){
+      rows = rows.filter(r => !r.region_district || r.region_district === district);
+    }
     rows = rows.filter(r => !isNoisePolicy(r));   // 노이즈(채용공고 등) 제외
     rows = dedupePolicies(rows);                  // 출처 간 중복 제거(크롤·복지로·전국배치 모두 Supabase에 적재됨)
 

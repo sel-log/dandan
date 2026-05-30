@@ -52,11 +52,12 @@ const SEED_NATIONWIDE = [
     benefit_detail:
       '대화 기반 전문 심리상담 서비스를 총 8회(1회 50분 이상, 1:1 대면) 이용할 수 있는 바우처를 제공합니다. ' +
       '바우처 단가는 1회 7~8만원이며, 본인부담금은 소득 수준에 따라 회당 0원~최대 24,000원으로 차등 적용됩니다. ' +
-      '바우처 생성일로부터 120일 안에 사용해야 합니다.\n\n' +
-      '[신청 조건]\n' +
-      '· 나이·소득 제한 없음 (혼자 살아도 OK)\n' +
-      '· 정신건강복지센터·대학상담센터·정신과 등에서 받은 의뢰서/소견서 필요\n' +
-      '· 온라인 신청은 만 19세 이상 본인만 가능',
+      '바우처 생성일로부터 120일 안에 사용해야 합니다.',
+    conditions_plain: [
+      '나이·소득 제한 없음 (혼자 살아도 OK)',
+      '정신건강복지센터·대학상담센터·정신과 등 의뢰서/소견서 필요',
+      '온라인 신청은 만 19세 이상 본인만 가능',
+    ],
     apply_method: 'both',
     apply_url: 'https://www.bokjiro.go.kr/ssis-tbu/twataa/wlfareInfo/moveTWAT52011M.do?wlfareInfoId=WLF00005567',
     apply_start: '2026-01-01',
@@ -64,6 +65,7 @@ const SEED_NATIONWIDE = [
     is_recurring: true,
     is_active: true,
     match_score: 88,
+    tags: ['심리상담', '마음건강', '바우처', '전국'],
   },
 ];
 
@@ -87,6 +89,7 @@ function toPolicyRow(r, cityHint) {
       category: nat.category || r.category || '건강',
       benefit_summary: r.benefit_summary || r.title,
       benefit_detail: r.benefit_detail || r.benefit_summary || '',
+      conditions_plain: Array.isArray(r.conditions_plain) ? r.conditions_plain : [],
       apply_method: r.apply_method || 'both',
       apply_url: r.apply_url || null,
       apply_start: r.apply_start || null,
@@ -94,6 +97,7 @@ function toPolicyRow(r, cityHint) {
       is_recurring: r.is_recurring ?? !r.apply_end,
       is_active: true,
       match_score: r.match_score || 85,
+      tags: Array.isArray(r.tags) ? r.tags : [],
     };
   }
   // 일반 복지로 행: 지역 그대로 유지, source=bokjiro 로 태깅
@@ -109,6 +113,7 @@ function toPolicyRow(r, cityHint) {
     category: r.category || '생활·문화',
     benefit_summary: r.benefit_summary || r.title,
     benefit_detail: r.benefit_detail || r.benefit_summary || '',
+    conditions_plain: Array.isArray(r.conditions_plain) ? r.conditions_plain : [],
     apply_method: r.apply_method || 'both',
     apply_url: r.apply_url || null,
     apply_start: r.apply_start || null,
@@ -116,6 +121,7 @@ function toPolicyRow(r, cityHint) {
     is_recurring: r.is_recurring ?? !r.apply_end,
     is_active: true,
     match_score: r.match_score || 75,
+    tags: Array.isArray(r.tags) ? r.tags : [],
   };
 }
 
