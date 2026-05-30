@@ -1239,10 +1239,9 @@ async function loadPolicies(city, district){
 
     let rows = [ ...((!reg.error && reg.data) ? reg.data : []),
                  ...((!nat.error && nat.data) ? nat.data : []) ];
-    // 시군구 선택 시: 그 시군구 OR 광역 공통(district 없음). 전국 행은 district가 없어 항상 통과.
-    if(district){
-      rows = rows.filter(r => !r.region_district || r.region_district === district);
-    }
+    // 시군구 선택 시에도 같은 광역의 다른 시 데이터를 '숨기지' 않음.
+    // (경기 데이터가 전부 특정 시로 태깅돼 있어, 숨기면 피드가 비어버림)
+    // 대신 renderFeed가 선택 시군구 > 광역 공통 > 전국 > 다른 시 순으로 정렬해 노출.
     rows = rows.filter(r => !isNoisePolicy(r));   // 노이즈(채용공고 등) 제외
     rows = dedupePolicies(rows);                  // 출처 간 중복 제거(크롤·복지로·전국배치 모두 Supabase에 적재됨)
 
@@ -1559,8 +1558,10 @@ function normalizePolicy(r){
     bdgs:     buildBadgesFromPolicy(r),
     deadline: formatDeadline(r.apply_end),
     dday:     calcDday(r.apply_end),
-    // 최근성 판단용: 마감일 우선, 없으면 시작일, 둘 다 없으면 999(상시)
-    recencyDday: calcDday(r.apply_end || r.apply_start),
+    // 최근성 판단용: 마감일 있으면 그 기준. 마감일 없고 상시(is_recurring)면 항상 노출(999).
+    // 마감일 없고 상시도 아니면 시작일 기준(옛날 1회성 글은 걸러짐).
+    recencyDday: r.apply_end ? calcDday(r.apply_end)
+               : (r.is_recurring ? 999 : calcDday(r.apply_start)),
     match:    r.match_score || 80,
     conds:    c.conds,
     info:     c.info,
