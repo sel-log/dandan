@@ -1560,10 +1560,8 @@ function normalizePolicy(r){
     bdgs:     buildBadgesFromPolicy(r),
     deadline: formatDeadline(r.apply_end),
     dday:     calcDday(r.apply_end),
-    // 최근성 판단용: 마감일 있으면 그 기준. 마감일 없고 상시(is_recurring)면 항상 노출(999).
-    // 마감일 없고 상시도 아니면 시작일 기준(옛날 1회성 글은 걸러짐).
-    recencyDday: r.apply_end ? calcDday(r.apply_end)
-               : (r.is_recurring ? 999 : calcDday(r.apply_start)),
+    // 노출용 최근성 (calcRecency): 마감일 있으면 그 기준, 상시는 '올해 시작'만, 비상시는 시작일 기준
+    recencyDday: calcRecency(r),
     match:    r.match_score || 80,
     conds:    c.conds,
     info:     c.info,
@@ -1604,6 +1602,20 @@ function periodLabel(start, end){
 function calcDday(dateStr){
   if(!dateStr) return 999;
   return Math.ceil((new Date(dateStr) - new Date()) / (1000*60*60*24));
+}
+// 노출용 최근성 점수. (조회일 기준 -90 이상이면 노출)
+//  - 마감일 있음: 그 날짜 기준 (실제 마감 3개월 창)
+//  - 마감일 없고 상시: 시작연도가 '올해 이상'일 때만 노출(999). 옛날(작년 이하) 시작 상시는 숨김(-9999).
+//    시작일 자체가 없으면 노출(999).
+//  - 마감일 없고 비상시: 시작일 기준 (옛날 1회성 글은 걸러짐)
+function calcRecency(r){
+  if(r.apply_end) return calcDday(r.apply_end);
+  if(r.is_recurring){
+    if(!r.apply_start) return 999;
+    const startYear = new Date(r.apply_start).getFullYear();
+    return startYear >= new Date().getFullYear() ? 999 : -9999;
+  }
+  return calcDday(r.apply_start);
 }
 // 카드 D-day 라벨: 음수=마감, 0~7=D-N(임박), 그 외=상시/마감일
 function ddayLabel(p){
