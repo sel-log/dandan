@@ -1239,28 +1239,27 @@ async function loadPolicies(city, district){
 
     let rows = [ ...((!reg.error && reg.data) ? reg.data : []),
                  ...((!nat.error && nat.data) ? nat.data : []) ];
-    /* ── 복지로 API도 fallback이 아니라 '항상' 호출해서 함께 병합 ── */
-    let bokjiro = [];
-    try {
+    // 시군구 선택 시: 그 시군구 OR 광역 공통(district 없음). 전국 행은 district가 없어 항상 통과.
+    if(district){
+      rows = rows.filter(r => !r.region_district || r.region_district === district);
+    }
+    rows = rows.filter(r => !isNoisePolicy(r));   // 노이즈(채용공고 등) 제외
+    rows = dedupePolicies(rows);                  // 출처 간 중복 제거(크롤·복지로·전국배치 모두 Supabase에 적재됨)
+
+    if(rows.length > 0){
+      DB = rows.map(r => normalizePolicy(r));
+    } else {
+      /* 폴백: Supabase가 완전히 비었을 때(예: 배치 첫 실행 전)만 복지로 실시간 호출 */
       const params = new URLSearchParams({ city });
       if(district) params.append('district', district);
       const res  = await fetch(`/api/policies?${params}`);
       const json = await res.json();
-      if(res.ok && json.success && Array.isArray(json.policies)){
-        bokjiro = json.policies;   // 복지로는 광역 단위라 region_district 없음(=광역 공통 취급)
+      if(res.ok && json.success && json.policies?.length > 0){
+        DB = json.policies.map(r => normalizePolicy(r)).filter(p => !isNoisePolicy({title:p.title}));
+      } else {
+        DB = [...DB_FALLBACK];
       }
-    } catch(e){ console.warn('복지로 호출 실패:', e.message); }
-
-    // 크롤(+전국 배치 = rows) + 복지로(bokjiro) 합치기
-    let merged = [...rows, ...bokjiro];
-    // 시군구 선택 시: 그 시군구 OR 광역 공통(district 없음). 전국·복지로는 district가 없어 항상 통과.
-    if(district){
-      merged = merged.filter(r => !r.region_district || r.region_district === district);
     }
-    merged = merged.filter(r => !isNoisePolicy(r));   // 노이즈(채용공고 등) 제외
-    merged = dedupePolicies(merged);                  // 출처 간 중복 제거(updated_at 최신=크롤 우선)
-
-    DB = merged.length > 0 ? merged.map(r => normalizePolicy(r)) : [...DB_FALLBACK];
   } catch(e) {
     console.warn('데이터 로드 실패, 폴백 사용:', e.message);
     DB = [...DB_FALLBACK];

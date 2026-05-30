@@ -70,9 +70,11 @@ const SEED_NATIONWIDE = [
 ];
 
 /* 복지로 한 건 → policies 스키마 행으로 정규화 */
-function toPolicyRow(r) {
+function toPolicyRow(r, cityHint) {
   const nat = matchNationwide(r.title || '');
   const baseId = r.id || ('h' + Buffer.from(`${r.title}|${r.org || ''}`).toString('base64').slice(0, 16));
+  // 지역 태깅은 호출한 city를 우선 사용 (복지로 응답에 region_city가 없어도 안전)
+  const regionCity = cityHint || r.region_city;
   if (nat) {
     // 전국 공통: 지역 무관 고정 id로 묶음 (지역별 중복 → 한 행)
     return {
@@ -100,13 +102,13 @@ function toPolicyRow(r) {
   }
   // 일반 복지로 행: 지역 그대로 유지, source=bokjiro 로 태깅
   return {
-    id: `bokjiro_${r.region_city || ''}_${baseId}`,
+    id: `bokjiro_${regionCity || ''}_${baseId}`,
     title: r.title,
     org: r.org || null,
     org_type: r.org_type || 'local_gov',
     source: 'bokjiro',
     source_portal: r.source_portal || 'https://www.bokjiro.go.kr',
-    region_city: r.region_city,
+    region_city: regionCity,
     region_district: r.region_district || null,
     category: r.category || '생활·문화',
     benefit_summary: r.benefit_summary || r.title,
@@ -161,7 +163,7 @@ export default async function handler(req, res) {
           // 제목·요약·상세 어디든 제외 키워드가 있으면 스킵
           const blob = `${p.title || ''} ${p.benefit_summary || ''} ${p.benefit_detail || ''}`;
           if (isExcluded(blob)) continue;
-          const row = toPolicyRow(p);
+          const row = toPolicyRow(p, city);
           byId.set(row.id, row);  // 같은 전국 id면 마지막 것으로 덮어씀(=합쳐짐)
         }
       } catch (e) {
