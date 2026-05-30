@@ -1226,16 +1226,17 @@ async function loadPolicies(city, district){
     /* ── 1순위: Supabase (크롤링된 1인가구 맞춤 데이터) ──
        광역(region_city) 전체를 받아온 뒤, 하위 지역은 클라이언트에서 필터.
        (.or() + 한국어 값 조합이 환경에 따라 0건을 반환하는 문제 회피) */
+    // 선택 광역 + '전국'(전국 공통 사업: 복지로 바우처 등) 함께 조회
     const { data: supaData, error } = await supa
       .from('policies')
       .select('*')
-      .eq('region_city', city)
+      .in('region_city', [city, '전국'])
       .order('match_score', { ascending: false })
       .limit(1000);
     if(error) console.warn('Supabase 쿼리 오류:', error.message);
 
     let rows = (!error && supaData) ? supaData : [];
-    // 하위 선택 시: 그 구/시 OR 광역 공통(region_district 없음)
+    // 하위 선택 시: 그 구/시 OR 광역 공통(region_district 없음). '전국' 행은 district가 없어 항상 통과.
     if(district){
       rows = rows.filter(r => !r.region_district || r.region_district === district);
     }
@@ -1547,6 +1548,7 @@ function normalizePolicy(r){
   const c = cleanContent(r);
   return {
     id:       r.id,
+    region_city: r.region_city || null,
     org:      (r.org||'').split(/\s+/).filter((w,i,a)=> i===0 || w!==a[i-1]).join(' '),
     region:   regionLabel(r),
     region_district: r.region_district || null,
@@ -2477,6 +2479,7 @@ function renderFeed(resetLimit=true){
   if(!list) return;
   const selDist = (selectedLocation && selectedLocation.district) ? selectedLocation.district : null;
   const isWide = p => !p.region_district || /^(전체|전지역|전\s*지역|공통|전국|광역)$/.test(String(p.region_district).trim());
+  const isNational = p => p.region_city === '전국';  // 전국 공통 사업(복지로 바우처 등)
   // 같은 그룹 내 정렬: 모집중/상시 > 모집예정 > 마감, 그 안에서 정렬모드(마감임박/추천)
   const within = (a,b)=>{
     const at=statusTier(a), bt=statusTier(b);
@@ -2486,16 +2489,18 @@ function renderFeed(resetLimit=true){
   };
   let d = [...DB].sort((a,b)=>{
     if(selDist){
-      // 시군구 선택: 선택 시군구 → 광역 공통(전체) → 기타
-      const ga = (String(a.region_district||'').trim()===selDist)?0:(isWide(a)?1:2);
-      const gb = (String(b.region_district||'').trim()===selDist)?0:(isWide(b)?1:2);
+      // 시군구 선택: 선택 시군구 → 광역 공통(전체) → 기타 → 전국 공통(맨 뒤)
+      const tier = p => isNational(p) ? 3
+                   : (String(p.region_district||'').trim()===selDist ? 0 : (isWide(p)?1:2));
+      const ga = tier(a), gb = tier(b);
       if(ga!==gb) return ga-gb;
       return within(a,b);
     } else {
-      // 광역만: 전체 먼저 → 시군구 가나다순 → (그룹 내) 모집중
-      const aw = isWide(a)?0:1, bw = isWide(b)?0:1;
-      if(aw!==bw) return aw-bw;
-      if(aw===1){
+      // 광역만: 광역 공통(전체) → 시군구 가나다순 → 전국 공통(맨 뒤)
+      const tier = p => isNational(p) ? 2 : (isWide(p)?0:1);
+      const at = tier(a), bt = tier(b);
+      if(at!==bt) return at-bt;
+      if(at===1){
         const cmp = String(a.region_district||'').localeCompare(String(b.region_district||''),'ko');
         if(cmp!==0) return cmp;
       }
@@ -3146,7 +3151,7 @@ async function adminKickMember(id, nick){
 
 /* ── 게시물 관리 (policies에 source=admin으로 등록) ── */
 const ADM_CATS = ['주거','금융','생활·문화','취업','건강','교육'];
-const ADM_CITIES = { '서울':'서울특별시','경기':'경기도','부산':'부산광역시' };
+const ADM_CITIES = { '서울':'서울특별시','경기':'경기도','부산':'부산광역시','전국':'전국(공통)' };
 async function renderAdminPosts(){
   const el=document.getElementById('adm-posts');
   el.innerHTML=`
