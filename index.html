@@ -351,6 +351,28 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 .sec-title{font-size:15px;font-weight:800;color:var(--text1);}
 .sort-wrap{display:flex;gap:5px;}
 .sort-btn{font-family:inherit;font-size:11px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text4);cursor:pointer;}
+/* ── 관리자 ── */
+.adm-tabs{position:absolute;top:52px;left:0;right:0;height:52px;display:flex;gap:6px;padding:8px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;}
+.adm-tab{flex:1;font-family:inherit;font-size:13px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--text4);border-radius:8px;cursor:pointer;}
+.adm-tab.on{background:var(--dandan);color:#fff;border-color:var(--dandan);}
+.adm-kpis{display:flex;gap:8px;margin-bottom:16px;}
+.adm-kpi{flex:1;background:var(--mint);border-radius:12px;padding:14px 10px;text-align:center;}
+.adm-kpi b{display:block;font-size:22px;color:var(--dandan);}
+.adm-kpi span{font-size:11px;color:var(--text4);}
+.adm-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:#fff;}
+.adm-row .r-main{font-size:14px;font-weight:700;color:var(--text1);}
+.adm-row .r-sub{font-size:11px;color:var(--text4);margin-top:3px;}
+.adm-badge{font-size:10px;padding:2px 7px;border-radius:6px;background:var(--mint);color:var(--dandan);font-weight:700;}
+.adm-badge.kakao{background:#FEE500;color:#3A1D1D;}
+.adm-badge.off{background:#eee;color:#999;}
+.adm-x{font-family:inherit;font-size:11px;font-weight:700;border:1px solid #E8C4C0;background:#FBE9E7;color:#C0392B;border-radius:7px;padding:6px 10px;cursor:pointer;white-space:nowrap;}
+.adm-toggle{font-family:inherit;font-size:11px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--text4);border-radius:7px;padding:6px 10px;cursor:pointer;white-space:nowrap;}
+.adm-toggle.on{background:var(--saesak);color:#fff;border-color:var(--saesak);}
+.adm-input{width:100%;font-family:inherit;font-size:14px;padding:11px 12px;border:1px solid var(--border);border-radius:9px;margin-bottom:9px;box-sizing:border-box;background:#fff;}
+.adm-input:focus{outline:none;border-color:var(--saesak);}
+.adm-label{font-size:12px;font-weight:700;color:var(--text4);margin:4px 2px 5px;}
+.adm-save{width:100%;font-family:inherit;font-size:15px;font-weight:800;padding:14px;border:none;border-radius:11px;background:var(--dandan);color:#fff;cursor:pointer;margin-top:6px;}
+.adm-sec-t{font-size:13px;font-weight:800;color:var(--text1);margin:18px 2px 10px;}
 .sort-btn.on{background:var(--text1);color:#fff;border-color:var(--text1);font-weight:800;}
 #sc-location{background:var(--bg);}
 .loc-screen-header{
@@ -616,7 +638,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
       <p class="spl-en" id="spl-en">DANDAN</p>
       <p class="spl-tag">혼자 사는 삶에 필요한 모든 것,<br>단단이 야무지게 챙겨드릴게요.</p>
       <button class="spl-btn" onclick="startOnboarding()">시작하기</button>
-      <button class="spl-link" onclick="goTo('sc-auth')">이미 계정이 있어요</button>
+      <button class="spl-link" onclick="openAuth('login')">이미 계정이 있어요</button>
     </div>
   </div>
 </div>
@@ -633,7 +655,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
   <!-- 지역 유도 시 보이는 배너 -->
   <div class="auth-nudge" id="auth-nudge" style="display:none;">
     <div class="auth-nudge-title">📍 우리 동네 혜택을 보려면 로그인이 필요해요</div>
-    <div class="auth-nudge-sub">가입하면 내 지역·나이에 딱 맞는 혜택만 쏙쏙 골라드려요.</div>
+    <div class="auth-nudge-sub">가입하면 내 지역에 딱 맞는 혜택만 쏙쏙 골라드려요.</div>
   </div>
   <div class="scroll-area">
     <div class="auth-hd">
@@ -1023,8 +1045,26 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 </div>
 
 <!-- ══════════════════════════════
-  NOTIFY SETTINGS
+  ADMIN (관리자 전용)
 ══════════════════════════════ -->
+<div class="screen" id="sc-admin">
+  <div class="top-nav">
+    <button class="back-btn" onclick="goTo('sc-my')">←</button>
+    <span class="top-title">🛠️ 관리자</span>
+  </div>
+  <div class="adm-tabs">
+    <button class="adm-tab on" data-tab="members" onclick="switchAdminTab('members')">회원</button>
+    <button class="adm-tab" data-tab="posts" onclick="switchAdminTab('posts')">게시물</button>
+    <button class="adm-tab" data-tab="stats" onclick="switchAdminTab('stats')">트래킹</button>
+  </div>
+  <div class="scroll-area" style="top:104px;">
+    <div class="pg-body">
+      <div id="adm-members" class="adm-pane"></div>
+      <div id="adm-posts" class="adm-pane" style="display:none;"></div>
+      <div id="adm-stats" class="adm-pane" style="display:none;"></div>
+    </div>
+  </div>
+</div>
 <div class="screen" id="sc-notify">
   <div class="top-nav">
     <button class="back-btn" onclick="goBack()">←</button>
@@ -1721,12 +1761,16 @@ function startSignup(provider){
 
 /* ── 카카오 OAuth ── */
 async function loginWithKakao(){
+  track('click','kakao_login');
   try {
     const { error } = await supa.auth.signInWithOAuth({
       provider: 'kakao',
       options: {
         redirectTo: window.location.origin + window.location.pathname,
+        // 카카오에 보내는 scope를 직접 지정 — account_email/profile_image 요청 차단(KOE205 방지)
+        // 콘솔에서 '필수 동의'로 켠 닉네임만 요청
         scopes: 'profile_nickname',
+        queryParams: { scope: 'profile_nickname' },
       }
     });
     if(error) throw error;
@@ -1841,6 +1885,7 @@ async function restoreSessionUser(supaUser){
       nickname:     profile.nickname,
       provider:     profile.provider || authProvider,
       supabase_uid: supaUser.id,
+      is_admin:     profile.is_admin === true,
     };
     if(profile.region_city && CITY_MAP[profile.region_city]){
       const cd = CITY_MAP[profile.region_city];
@@ -2024,9 +2069,9 @@ async function finishSetup(){
   }
 
   refreshFeedUI();
-  // 항상 지역 설정 화면으로 — pendingLocation이 있으면 미리 세팅돼서 보임
+  // 가입 완료 → 지역 설정 화면으로
   goTo('sc-location');
-  toast(user.nickname+'님, 반가워요! 📍 아까 선택한 동네로 설정할게요.');
+  toast(user.nickname+'님, 반가워요! 📍 우리 동네를 설정해볼까요?');
 }
 
 /* ═══════════════════════════════════════
@@ -2057,8 +2102,8 @@ function removeSavedLocation(){
 
 /* ── 온보딩 시작 (스플래시 → 지역 선택) ── */
 function startOnboarding(){
-  pendingLocation = null; // 초기화
-  goTo('sc-location');
+  pendingLocation = null; // 지역은 가입 후 설정 (지역 선택 단계 건너뜀)
+  openAuth('signup');
 }
 
 /* sc-location 화면 진입 시 현재 선택 상태 복원 */
@@ -2620,6 +2665,7 @@ function openDetail(id){
 }
 
 function applyNow(){
+  track('click','apply');
   const btn = document.getElementById('a-apply-btn');
   const url = btn?.dataset.url;
   if(url){
@@ -2648,6 +2694,7 @@ function toggleLike(id,btn){
 }
 function toggleLikeById(id){
   const sid = String(id);
+  if(!liked.has(sid)) track('click','wish');
   if(liked.has(sid)){
     liked.delete(sid);
     if(user?.supabase_uid){
@@ -2847,7 +2894,9 @@ function renderMyPage(){
         <div class="mi" onclick="goTo('sc-wish')"><div class="mi-l"><span class="mi-ico">🤍</span> 단단히 챙겨둔 것들</div><span class="mi-arr">›</span></div>
         <div class="mi" onclick="openNotifSettings()"><div class="mi-l"><span class="mi-ico">🔔</span> 알림 설정</div><span class="mi-arr">›</span></div>
         <div class="mi" onclick="toast('개인정보 처리방침')"><div class="mi-l"><span class="mi-ico">🔒</span> 개인정보 처리방침</div><span class="mi-arr">›</span></div>
+        ${user.is_admin ? `<div class="mi" onclick="openAdmin()"><div class="mi-l"><span class="mi-ico">🛠️</span> 관리자</div><span class="mi-arr">›</span></div>` : ''}
         <div class="mi" onclick="logout()"><div class="mi-l"><span class="mi-ico">🚪</span> 로그아웃</div><span class="mi-arr">›</span></div>
+        <div class="mi" onclick="confirmWithdraw()"><div class="mi-l"><span class="mi-ico" style="opacity:.6;">👋</span> <span style="color:var(--text4);">회원 탈퇴</span></div><span class="mi-arr">›</span></div>
       </div>
     </div>`;
 }
@@ -2934,6 +2983,279 @@ async function logout(){
   toast('로그아웃 됐어요. 또 봐요! 👋');
 }
 
+// 회원 탈퇴 (soft delete: 닉네임은 재사용 가능하도록 비우고 deleted_at 기록)
+function confirmWithdraw(){
+  const bg=document.createElement('div');
+  bg.className='modal-bg';
+  bg.innerHTML=`<div class="modal-sh">
+    <div class="m-handle"></div>
+    <div class="m-title">정말 탈퇴하시겠어요?</div>
+    <div style="font-size:13px;color:var(--text4);line-height:1.6;margin:-2px 4px 16px;">
+      탈퇴하면 닉네임·지역·찜 정보가 삭제돼요.<br>언제든 다시 가입할 수 있어요.
+    </div>
+    <div class="share-btns">
+      <button class="share-btn" style="background:#fff;" onclick="closeShare()">돌아가기</button>
+      <button class="share-btn" style="background:#FBE9E7;color:#C0392B;" onclick="doWithdraw()">탈퇴하기</button>
+    </div>
+  </div>`;
+  bg.addEventListener('click',e=>{if(e.target===bg)closeShare();});
+  document.getElementById('app').appendChild(bg);
+}
+
+async function doWithdraw(){
+  closeShare();
+  if(user?.provider === 'dev'){ toast('개발자 모드에서는 탈퇴할 수 없어요'); return; }
+  if(!user?.supabase_uid){ toast('탈퇴 처리에 실패했어요'); return; }
+  try {
+    // soft delete: 닉네임 비우고(재사용 가능) 지역·찜 정리, deleted_at 기록
+    await supa.from('profiles').update({
+      nickname:        null,
+      region_city:     null,
+      region_district: null,
+      deleted_at:      new Date().toISOString(),
+      updated_at:      new Date().toISOString(),
+    }).eq('id', user.supabase_uid);
+    try { await supa.from('wishes').delete().eq('user_id', user.supabase_uid); } catch(_){}
+  } catch(e){
+    console.warn('탈퇴 실패:', e.message);
+    toast('탈퇴 처리 중 문제가 생겼어요');
+    return;
+  }
+  removeSavedLocation();
+  try { await supa.auth.signOut(); } catch(_){}
+  user = null; hist = []; liked = new Set();
+  refreshFeedUI();
+  goTo('sc-feed');
+  toast('탈퇴되었어요. 그동안 함께해서 고마웠어요 🌱');
+}
+
+/* ═══════════════════════════════════════
+   TRACKING (가벼운 일별 PV/UV + 클릭)
+═══════════════════════════════════════ */
+function _anonId(){
+  let a = localStorage.getItem('dandan_anon');
+  if(!a){ a = (crypto.randomUUID ? crypto.randomUUID() : 'a'+Date.now()+Math.random().toString(16).slice(2)); localStorage.setItem('dandan_anon', a); }
+  return a;
+}
+async function track(type, name){
+  try {
+    const anon = _anonId();
+    if(type === 'pv'){
+      const today = new Date().toISOString().slice(0,10);
+      const last = localStorage.getItem('dandan_uv_day');
+      if(last !== today){
+        localStorage.setItem('dandan_uv_day', today);
+        supa.from('track_events').insert({ type:'uv', anon_id:anon }).then(()=>{},()=>{});
+      }
+    }
+    await supa.from('track_events').insert({ type, name: name||null, anon_id:anon });
+  } catch(_){ /* 트래킹 실패는 조용히 무시 */ }
+}
+
+/* ═══════════════════════════════════════
+   ADMIN
+═══════════════════════════════════════ */
+function openAdmin(){
+  if(!user?.is_admin){ toast('관리자만 접근할 수 있어요'); return; }
+  goTo('sc-admin');
+  switchAdminTab('members');
+}
+function switchAdminTab(tab){
+  document.querySelectorAll('.adm-tab').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
+  ['members','posts','stats'].forEach(t=>{
+    const pane=document.getElementById('adm-'+t);
+    if(pane) pane.style.display = (t===tab)?'block':'none';
+  });
+  if(tab==='members') renderAdminMembers();
+  if(tab==='posts')   renderAdminPosts();
+  if(tab==='stats')   renderAdminStats();
+}
+
+/* ── 회원관리 ── */
+async function renderAdminMembers(){
+  const el=document.getElementById('adm-members');
+  el.innerHTML='<div style="text-align:center;color:var(--text4);padding:30px;">불러오는 중…</div>';
+  const { data, error } = await supa.from('profiles')
+    .select('id,nickname,provider,region_city,region_district,created_at,deleted_at')
+    .order('created_at',{ascending:false});
+  if(error){ el.innerHTML='<div style="color:#C0392B;padding:20px;">조회 실패: '+error.message+'</div>'; return; }
+  const active = data.filter(m=>m.nickname && !m.deleted_at);
+  const kakao  = active.filter(m=>m.provider==='kakao').length;
+  const email  = active.filter(m=>m.provider==='email').length;
+  const byCity = {};
+  active.forEach(m=>{ const c=m.region_city||'미설정'; byCity[c]=(byCity[c]||0)+1; });
+  const cityStr = Object.entries(byCity).map(([c,n])=>`${c} ${n}`).join(' · ') || '-';
+
+  let h = `<div class="adm-kpis">
+    <div class="adm-kpi"><b>${active.length}</b><span>활성 회원</span></div>
+    <div class="adm-kpi"><b>${kakao}</b><span>카카오</span></div>
+    <div class="adm-kpi"><b>${email}</b><span>이메일</span></div>
+  </div>
+  <div class="adm-row" style="background:var(--cream);"><div><div class="r-sub">지역 분포</div><div class="r-main" style="font-size:13px;">${cityStr}</div></div></div>
+  <div class="adm-sec-t">회원 목록 (${active.length})</div>`;
+
+  h += active.map(m=>{
+    const region = m.region_city ? `${m.region_city}${m.region_district?' '+m.region_district:''}` : '지역 미설정';
+    const joined = m.created_at ? new Date(m.created_at).toISOString().slice(0,10) : '-';
+    const pv = m.provider==='kakao' ? '<span class="adm-badge kakao">카카오</span>' : '<span class="adm-badge">이메일</span>';
+    return `<div class="adm-row">
+      <div>
+        <div class="r-main">${m.nickname} ${pv}</div>
+        <div class="r-sub">${region} · 가입 ${joined}</div>
+      </div>
+      <button class="adm-x" onclick="adminKickMember('${m.id}','${(m.nickname||'').replace(/'/g,'')}')">강제 탈퇴</button>
+    </div>`;
+  }).join('') || '<div style="color:var(--text4);padding:20px;text-align:center;">활성 회원이 없어요</div>';
+  el.innerHTML=h;
+}
+async function adminKickMember(id, nick){
+  if(!confirm(`'${nick}' 회원을 탈퇴 처리할까요?`)) return;
+  const { error } = await supa.from('profiles').update({
+    nickname:null, region_city:null, region_district:null,
+    deleted_at:new Date().toISOString(), updated_at:new Date().toISOString(),
+  }).eq('id', id);
+  if(error){ toast('실패: '+error.message); return; }
+  try { await supa.from('wishes').delete().eq('user_id', id); } catch(_){}
+  toast('탈퇴 처리했어요');
+  renderAdminMembers();
+}
+
+/* ── 게시물 관리 (policies에 source=admin으로 등록) ── */
+const ADM_CATS = ['주거','금융','생활·문화','취업','건강','교육'];
+const ADM_CITIES = { '서울':'서울특별시','경기':'경기도','부산':'부산광역시' };
+async function renderAdminPosts(){
+  const el=document.getElementById('adm-posts');
+  el.innerHTML=`
+    <div class="adm-sec-t">새 게시물 등록</div>
+    <div class="adm-label">제목 *</div>
+    <input class="adm-input" id="ap-title" placeholder="예: 1인가구 집밥 클래스">
+    <div class="adm-label">한줄 설명</div>
+    <input class="adm-input" id="ap-desc" placeholder="카드에 보일 짧은 설명">
+    <div class="adm-label">지역 *</div>
+    <select class="adm-input" id="ap-city">${Object.keys(ADM_CITIES).map(c=>`<option value="${c}">${ADM_CITIES[c]}</option>`).join('')}</select>
+    <input class="adm-input" id="ap-district" placeholder="시·군·구 (선택, 예: 강남구)">
+    <div class="adm-label">카테고리</div>
+    <select class="adm-input" id="ap-cat">${ADM_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
+    <div class="adm-label">기관명</div>
+    <input class="adm-input" id="ap-org" placeholder="예: ○○구 가족센터">
+    <div style="display:flex;gap:9px;">
+      <div style="flex:1;"><div class="adm-label">신청 시작</div><input class="adm-input" id="ap-start" type="date"></div>
+      <div style="flex:1;"><div class="adm-label">신청 마감</div><input class="adm-input" id="ap-end" type="date"></div>
+    </div>
+    <div class="adm-label">상세 내용</div>
+    <textarea class="adm-input" id="ap-detail" rows="4" placeholder="혜택 본문 내용"></textarea>
+    <div class="adm-label">신청 링크 (URL)</div>
+    <input class="adm-input" id="ap-url" placeholder="https://...">
+    <button class="adm-save" onclick="adminCreatePost()">게시물 등록</button>
+    <div class="adm-sec-t">등록한 게시물</div>
+    <div id="adm-post-list"><div style="color:var(--text4);padding:14px;text-align:center;">불러오는 중…</div></div>
+  `;
+  loadAdminPostList();
+}
+async function loadAdminPostList(){
+  const box=document.getElementById('adm-post-list');
+  const { data, error } = await supa.from('policies')
+    .select('id,title,region_city,region_district,is_active,category')
+    .eq('source','admin').order('updated_at',{ascending:false});
+  if(error){ box.innerHTML='<div style="color:#C0392B;padding:14px;">조회 실패: '+error.message+'</div>'; return; }
+  if(!data.length){ box.innerHTML='<div style="color:var(--text4);padding:14px;text-align:center;">아직 등록한 게시물이 없어요</div>'; return; }
+  box.innerHTML=data.map(p=>{
+    const region=`${p.region_city||''}${p.region_district?' '+p.region_district:''}`;
+    const on=p.is_active!==false;
+    return `<div class="adm-row">
+      <div>
+        <div class="r-main">${p.title} ${on?'':'<span class="adm-badge off">숨김</span>'}</div>
+        <div class="r-sub">${p.category||''} · ${region}</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="adm-toggle ${on?'on':''}" onclick="adminTogglePost('${p.id}',${on})">${on?'노출중':'숨김'}</button>
+        <button class="adm-x" onclick="adminDeletePost('${p.id}')">삭제</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function adminCreatePost(){
+  const v=id=>document.getElementById(id).value.trim();
+  const title=v('ap-title');
+  if(!title){ toast('제목을 입력해주세요'); return; }
+  const city=v('ap-city');
+  const row={
+    id: 'admin_' + Date.now(),
+    title,
+    org: v('ap-org') || ADM_CITIES[city],
+    org_type: 'local_gov',
+    source: 'admin',
+    source_portal: null,
+    region_city: city,
+    region_district: v('ap-district') || null,
+    category: v('ap-cat'),
+    benefit_summary: v('ap-desc') || title,
+    benefit_detail: v('ap-detail') || v('ap-desc') || '',
+    apply_method: 'online',
+    apply_url: v('ap-url') || null,
+    apply_start: v('ap-start') || null,
+    apply_end: v('ap-end') || null,
+    is_recurring: !v('ap-end'),
+    is_active: true,
+    match_score: 95,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supa.from('policies').upsert(row, { onConflict:'id' });
+  if(error){ toast('등록 실패: '+error.message); return; }
+  toast('게시물을 등록했어요 ✅');
+  ['ap-title','ap-desc','ap-district','ap-org','ap-start','ap-end','ap-detail','ap-url'].forEach(i=>document.getElementById(i).value='');
+  loadAdminPostList();
+}
+async function adminTogglePost(id, currentlyOn){
+  const { error } = await supa.from('policies').update({ is_active: !currentlyOn, updated_at:new Date().toISOString() }).eq('id', id);
+  if(error){ toast('실패: '+error.message); return; }
+  loadAdminPostList();
+}
+async function adminDeletePost(id){
+  if(!confirm('이 게시물을 완전히 삭제할까요?')) return;
+  const { error } = await supa.from('policies').delete().eq('id', id);
+  if(error){ toast('삭제 실패: '+error.message); return; }
+  toast('삭제했어요');
+  loadAdminPostList();
+}
+
+/* ── 트래킹 대시보드 ── */
+async function renderAdminStats(){
+  const el=document.getElementById('adm-stats');
+  el.innerHTML='<div style="text-align:center;color:var(--text4);padding:30px;">불러오는 중…</div>';
+  const since=new Date(Date.now()-14*864e5).toISOString().slice(0,10);
+  const { data, error } = await supa.from('track_events')
+    .select('day,type,name').gte('day', since);
+  if(error){ el.innerHTML='<div style="color:#C0392B;padding:20px;">조회 실패: '+error.message+'<br><span style="font-size:12px;">track_events 테이블/RLS를 확인하세요.</span></div>'; return; }
+  const pv=data.filter(e=>e.type==='pv').length;
+  const uv=data.filter(e=>e.type==='uv').length;
+  const clicks=data.filter(e=>e.type==='click');
+  const byName={}; clicks.forEach(c=>{ const n=c.name||'기타'; byName[n]=(byName[n]||0)+1; });
+  const nameLabel={apply:'신청하러 가기',share:'공유',wish:'찜',kakao_login:'카카오 로그인'};
+  const byDay={}; data.filter(e=>e.type==='pv').forEach(e=>{ byDay[e.day]=(byDay[e.day]||0)+1; });
+  const days=Object.keys(byDay).sort();
+  const maxv=Math.max(1,...Object.values(byDay));
+
+  let h=`<div class="adm-kpis">
+    <div class="adm-kpi"><b>${pv}</b><span>PV (14일)</span></div>
+    <div class="adm-kpi"><b>${uv}</b><span>UV (14일)</span></div>
+    <div class="adm-kpi"><b>${clicks.length}</b><span>클릭</span></div>
+  </div>
+  <div class="adm-sec-t">일별 방문 (PV)</div>`;
+  h += days.length ? days.map(d=>`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <span style="font-size:11px;color:var(--text4);width:46px;">${d.slice(5)}</span>
+      <div style="flex:1;background:var(--mint);border-radius:5px;height:18px;overflow:hidden;"><div style="width:${Math.round(byDay[d]/maxv*100)}%;height:100%;background:var(--saesak);"></div></div>
+      <span style="font-size:11px;color:var(--text1);width:30px;text-align:right;">${byDay[d]}</span>
+    </div>`).join('') : '<div style="color:var(--text4);padding:10px;">아직 방문 데이터가 없어요</div>';
+
+  h+=`<div class="adm-sec-t">버튼 클릭</div>`;
+  const names=Object.keys(byName);
+  h += names.length ? names.map(n=>`<div class="adm-row"><div class="r-main">${nameLabel[n]||n}</div><div class="adm-badge">${byName[n]}</div></div>`).join('')
+                    : '<div style="color:var(--text4);padding:10px;">아직 클릭 데이터가 없어요</div>';
+  el.innerHTML=h;
+}
+
 /* ═══════════════════════════════════════
    SHARE / TOAST
 ═══════════════════════════════════════ */
@@ -2958,6 +3280,7 @@ function _shareDesc(p){
 }
 
 function shareKakao(){
+  track('click','share');
   const p = _curPolicy();
   closeShare();
   if(!p){ toast('공유할 혜택을 찾지 못했어요'); return; }
@@ -3046,14 +3369,15 @@ initCitySelects();
     user = {
       nickname:     '테스터',
       provider:     'dev',
-      supabase_uid: null, // Supabase 없이 로컬 세션
+      supabase_uid: null,
+      is_admin: true, // Supabase 없이 로컬 세션
     };
     // localStorage에 표시 (새로고침해도 유지)
     localStorage.setItem('dandan_dev_mode', '1');
     console.log('🛠 개발자 모드 활성화 — 모든 기능에 접근 가능');
   } else if(localStorage.getItem('dandan_dev_mode') === '1'){
     // 한번 들어오면 새로고침해도 유지
-    user = { nickname: '테스터', provider: 'dev', supabase_uid: null };
+    user = { nickname: '테스터', provider: 'dev', supabase_uid: null, is_admin: true };
   }
   // ─────────────────────────────────────
 
@@ -3075,6 +3399,7 @@ initCitySelects();
           nickname:      profile.nickname,
           provider:      profile.provider || 'email',
           supabase_uid:  session.user.id,
+          is_admin:      profile.is_admin === true,
         };
         // 저장된 지역 복원
         if(profile.region_city){
@@ -3120,6 +3445,7 @@ initCitySelects();
   if(user?.provider === 'dev'){
     goTo('sc-feed');
   }
+  track('pv');  // 방문 기록 (UV는 하루 1회 자동 처리)
 })();
 
 // 카드 클릭 이벤트 위임 — renderCard의 data-id 기반
