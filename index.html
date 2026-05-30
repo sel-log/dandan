@@ -3381,47 +3381,16 @@ initCitySelects();
   }
   // ─────────────────────────────────────
 
-  // 기존 Supabase 세션 복원 (새로고침해도 로그인 유지)
+  // 기존 Supabase 세션 복원 (새로고침/카카오 OAuth 복귀 시)
   // dev 모드일 땐 건너뜀
+  let sessionRestored = false;
   try {
     if(user?.provider === 'dev') throw new Error('dev mode active');
     const { data: { session } } = await supa.auth.getSession();
     if(session?.user){
-      // 프로필 불러오기
-      const { data: profile } = await supa
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-
-      if(profile){
-        user = {
-          nickname:      profile.nickname,
-          provider:      profile.provider || 'email',
-          supabase_uid:  session.user.id,
-          is_admin:      profile.is_admin === true,
-        };
-        // 저장된 지역 복원
-        if(profile.region_city){
-          const cityData = CITY_MAP[profile.region_city];
-          if(cityData){
-            selectedLocation = {
-              city:          profile.region_city,
-              cityLabel:     cityData.label,
-              district:      profile.region_district || null,
-              districtLabel: profile.region_district || null,
-              portal:        cityData.portal,
-              portalName:    cityData.portalName,
-            };
-          }
-        }
-        // 찜 목록 복원
-        const { data: wishes } = await supa
-          .from('wishes')
-          .select('policy_id')
-          .eq('user_id', session.user.id);
-        if(wishes) wishes.forEach(w => liked.add(w.policy_id));
-      }
+      // restoreSessionUser가 user 세팅 + 신규(약관/닉네임)·기존(홈/지역) 라우팅까지 처리
+      await restoreSessionUser(session.user);
+      sessionRestored = true;
     }
   } catch(e) {
     console.warn('세션 복원 실패:', e.message);
@@ -3429,15 +3398,15 @@ initCitySelects();
 
   refreshFeedUI();
 
-  // OAuth 리다이렉트 후 세션 처리 (카카오 로그인 완료 시)
+  // OAuth 리다이렉트 후 세션 처리 (카카오 로그인 완료 직후 이벤트)
   supa.auth.onAuthStateChange(async (event, session) => {
     if((event === 'SIGNED_IN') && session?.user && !user){
       await restoreSessionUser(session.user);
     }
   });
 
-  // 지역이 이미 설정돼 있으면 데이터 즉시 로드
-  if(user && selectedLocation){
+  // 지역이 이미 설정돼 있으면 데이터 즉시 로드 (restoreSessionUser가 이미 로드했으면 중복이지만 무해)
+  if(user && selectedLocation && !sessionRestored){
     loadPolicies(selectedLocation.city, selectedLocation.district);
   }
 
