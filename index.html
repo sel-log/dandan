@@ -1553,7 +1553,7 @@ function periodLabel(start, end){
   const e = end   ? String(end).slice(0,10).replace(/-/g,'.')   : null;
   if(s && e) return `${s} ~ ${e}`;
   if(e) return `~ ${e}`;
-  if(s) return `${s} ~`;
+  if(s) return `${s} ~ 마감 시까지`;
   return '상시';
 }
 function calcDday(dateStr){

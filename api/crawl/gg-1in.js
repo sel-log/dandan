@@ -86,10 +86,10 @@ export default async function handler(req, res) {
           }
         }
 
-        const dateMatch = remark.match(/신청기간[^\d]*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})[^\d~]*[~～]\s*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2})/);
-        // 마감일: 신청기간 명시 우선. 없는데 마감이면 작성일을 마감 기준일로(앱의 3개월 윈도우용). 둘 다 없으면 null(상시)
-        const apply_end = dateMatch ? parseDate(dateMatch[2])
-                        : (isClosed ? parseDate(item.WRITE_DATE2) : null);
+        const { start: pStart, end: pEnd } = parseGgPeriod(remark);
+        // 시작일: 신청기간 명시 우선, 없으면 작성일(앱 3개월 윈도우용). 종료일: 명시된 경우만(선착순/상시는 null)
+        const apply_start = pStart || parseDate(item.WRITE_DATE2);
+        const apply_end   = pEnd || (isClosed ? parseDate(item.WRITE_DATE2) : null);
 
         const apply_url = item.ADD_COLUMN06
           ? item.ADD_COLUMN06.trim()
@@ -119,7 +119,7 @@ export default async function handler(req, res) {
             apply_steps: [],
             apply_method: 'both',
             apply_url,
-            apply_start: dateMatch ? parseDate(dateMatch[1]) : parseDate(item.WRITE_DATE2),
+            apply_start,
             apply_end,
             is_recurring: !apply_end,
             match_score: calcScore(title),
@@ -260,6 +260,36 @@ function parseConditionsFromRemark(remark) {
   const targetMatch = text.match(/대상\s*[:：]?\s*([^.!\n]{5,80})/);
   if (targetMatch) conds.push(targetMatch[1].trim());
   return conds.slice(0, 3);
+}
+
+/**
+ * 신청/모집/접수기간에서 시작일·종료일 추출.
+ * - "신청기간 : 2026.05.22.(금) 18:00~ 선착순" → 시작만 (선착순=종료 없음)
+ * - "모집기간 2026.06.01 ~ 2026.06.20"       → 시작·종료
+ * - "2026. 6. 10. ~ 6. 24."(연도 생략)        → 종료에 시작 연도 상속
+ * 못 찾으면 {start:null, end:null}
+ */
+function parseGgPeriod(remark) {
+  const text = stripHtml(remark).replace(/&[a-z]+;/gi, ' ');
+  const pad = n => String(n).padStart(2, '0');
+  const m = text.match(/(?:신청|모집|접수|참여\s*신청)\s*기간\s*[:：]?\s*([\s\S]{0,50})/);
+  const seg = m ? m[1] : '';
+  // 완전한 날짜(YYYY/YY . M . D) 토큰들
+  const full = [...seg.matchAll(/(\d{2,4})\s*[.\-/]\s*(\d{1,2})\s*[.\-/]\s*(\d{1,2})/g)];
+  if (!full.length) return { start: null, end: null };
+  const yr = y => (String(y).length <= 2 ? '20' + String(y).padStart(2, '0') : String(y));
+  const start = `${yr(full[0][1])}-${pad(full[0][2])}-${pad(full[0][3])}`;
+  let end = null;
+  if (full.length >= 2) {
+    end = `${yr(full[1][1])}-${pad(full[1][2])}-${pad(full[1][3])}`;
+  } else {
+    // "~ M. D" 처럼 연도 생략된 종료일 → 시작 연도 상속
+    const md = seg.match(/[~～]\s*(\d{1,2})\s*[.\-/]\s*(\d{1,2})/);
+    if (md) end = `${start.slice(0, 4)}-${pad(md[1])}-${pad(md[2])}`;
+  }
+  // 종료가 시작보다 빠르면(파싱 오류) 버림
+  if (end && end < start) end = null;
+  return { start, end };
 }
 
 function calcScore(title) {
