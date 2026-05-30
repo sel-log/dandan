@@ -1997,14 +1997,15 @@ async function confirmNick(){
   if(!nickValid) return;
   const nick = document.getElementById('nick-input').value.trim();
 
-  try {
-    const { data, error } = await supa.auth.signInAnonymously();
-    if(error) throw error;
-    user = { nickname: nick, provider: pendingProvider, supabase_uid: data.user?.id || null };
-  } catch(e) {
-    console.warn('Supabase 익명 로그인 실패, 로컬 모드:', e.message);
-    user = { nickname: nick, provider: pendingProvider, supabase_uid: null };
-  }
+  // 카카오/이메일로 이미 인증되어 user.supabase_uid가 있음. 익명 로그인 불필요.
+  // (기존 user 객체를 유지하고 닉네임만 채운다)
+  const uid = user?.supabase_uid || null;
+  user = {
+    nickname:     nick,
+    provider:     user?.provider || pendingProvider,
+    supabase_uid: uid,
+    is_admin:     user?.is_admin === true,
+  };
 
   takenNicks.push(nick);
   // 약관에서 알림 수신 동의 여부 반영
