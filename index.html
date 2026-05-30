@@ -637,8 +637,8 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
       <h1 class="spl-brand">단단</h1>
       <p class="spl-en" id="spl-en">DANDAN</p>
       <p class="spl-tag">혼자 사는 삶에 필요한 모든 것,<br>단단이 야무지게 챙겨드릴게요.</p>
-      <button class="spl-btn" onclick="startOnboarding()">시작하기</button>
-      <button class="spl-link" onclick="openAuth('login')">이미 계정이 있어요</button>
+      <button class="spl-btn" onclick="startLogin()">시작하기</button>
+      <button class="spl-link" onclick="startSignupFlow()">회원가입하기</button>
     </div>
   </div>
 </div>
@@ -1875,7 +1875,7 @@ async function submitEmailAuth(){
 }
 
 /* 로그인 후 기존 세션에서 유저 복원 */
-async function restoreSessionUser(supaUser){
+async function restoreSessionUser(supaUser, silent){
   const authProvider = supaUser?.app_metadata?.provider || 'email'; // kakao | email
   const { data: profile } = await supa.from('profiles')
     .select('*').eq('id', supaUser.id).single();
@@ -1900,6 +1900,11 @@ async function restoreSessionUser(supaUser){
     const { data: wishes } = await supa.from('wishes').select('policy_id').eq('user_id', supaUser.id);
     if(wishes) wishes.forEach(w => liked.add(w.policy_id));
     refreshFeedUI();
+    // silent: 상태만 복원하고 화면 전환 안 함 (일반 재접속 시 스플래시 유지)
+    if(silent){
+      if(selectedLocation) loadPolicies(selectedLocation.city, selectedLocation.district);
+      return;
+    }
     hist = hist.filter(h => !['sc-email-auth','sc-auth','sc-terms','sc-nickname'].includes(h));
     if(selectedLocation){
       goTo('sc-feed');
@@ -1913,6 +1918,7 @@ async function restoreSessionUser(supaUser){
     // 프로필 없으면 닉네임 설정으로 (회원가입)
     user = { nickname: null, provider: authProvider, supabase_uid: supaUser.id };
     pendingProvider = authProvider;
+    if(silent) return;  // 미완성 가입도 재접속 시엔 스플래시 유지
     resetTerms();
     goTo('sc-terms');
   }
@@ -2102,8 +2108,25 @@ function removeSavedLocation(){
 }
 
 /* ── 온보딩 시작 (스플래시 → 지역 선택) ── */
-function startOnboarding(){
-  pendingLocation = null; // 지역은 가입 후 설정 (지역 선택 단계 건너뜀)
+// 시작하기 → 로그인 flow (이미 로그인된 완성회원이면 바로 진입)
+function startLogin(){
+  if(user && user.supabase_uid && user.nickname){
+    if(selectedLocation){ goTo('sc-feed'); }
+    else { goTo('sc-location'); }
+    return;
+  }
+  openAuth('login');
+}
+
+// 회원가입하기 → 가입 flow (가입 중단 상태면 약관부터 이어가기)
+function startSignupFlow(){
+  if(user && user.supabase_uid && !user.nickname){
+    pendingProvider = user.provider || pendingProvider;
+    resetTerms();
+    goTo('sc-terms');
+    return;
+  }
+  pendingLocation = null;
   openAuth('signup');
 }
 
@@ -3382,16 +3405,17 @@ initCitySelects();
   }
   // ─────────────────────────────────────
 
-  // 기존 Supabase 세션 복원 (새로고침/카카오 OAuth 복귀 시)
-  // dev 모드일 땐 건너뜀
-  let sessionRestored = false;
+  // 카카오 OAuth 복귀 여부 감지 (URL 해시에 access_token이 있으면 방금 로그인하고 돌아온 것)
+  const isOAuthReturn = /access_token=|[?&]code=/.test(window.location.hash + window.location.search);
+
+  // 세션 복원
+  // - OAuth 복귀: 자동 라우팅(약관/홈)
+  // - 일반 재접속: 상태만 복원하고 스플래시 유지(silent)
   try {
     if(user?.provider === 'dev') throw new Error('dev mode active');
     const { data: { session } } = await supa.auth.getSession();
     if(session?.user){
-      // restoreSessionUser가 user 세팅 + 신규(약관/닉네임)·기존(홈/지역) 라우팅까지 처리
-      await restoreSessionUser(session.user);
-      sessionRestored = true;
+      await restoreSessionUser(session.user, !isOAuthReturn);
     }
   } catch(e) {
     console.warn('세션 복원 실패:', e.message);
@@ -3399,17 +3423,12 @@ initCitySelects();
 
   refreshFeedUI();
 
-  // OAuth 리다이렉트 후 세션 처리 (카카오 로그인 완료 직후 이벤트)
+  // OAuth 리다이렉트 직후 이벤트 (getSession이 놓친 경우 대비) — 복귀일 때만 라우팅
   supa.auth.onAuthStateChange(async (event, session) => {
-    if((event === 'SIGNED_IN') && session?.user && !user){
-      await restoreSessionUser(session.user);
+    if((event === 'SIGNED_IN') && session?.user && !user && isOAuthReturn){
+      await restoreSessionUser(session.user, false);
     }
   });
-
-  // 지역이 이미 설정돼 있으면 데이터 즉시 로드 (restoreSessionUser가 이미 로드했으면 중복이지만 무해)
-  if(user && selectedLocation && !sessionRestored){
-    loadPolicies(selectedLocation.city, selectedLocation.district);
-  }
 
   // 🛠 dev 모드: 스플래시 건너뛰고 피드로 바로 이동
   if(user?.provider === 'dev'){
