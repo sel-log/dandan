@@ -1062,7 +1062,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
     <button class="adm-tab" data-tab="posts" onclick="switchAdminTab('posts')">게시물</button>
     <button class="adm-tab" data-tab="stats" onclick="switchAdminTab('stats')">트래킹</button>
   </div>
-  <div class="scroll-area" style="top:104px;">
+  <div class="scroll-area" style="top:104px;padding-top:14px;">
     <div class="pg-body">
       <div id="adm-members" class="adm-pane"></div>
       <div id="adm-posts" class="adm-pane" style="display:none;"></div>
@@ -3209,6 +3209,26 @@ async function renderAdminPosts(){
       <textarea class="adm-input" id="ap-detail" rows="4" placeholder="혜택 본문 내용"></textarea>
       <div class="adm-label">신청 링크 (URL)</div>
       <input class="adm-input" id="ap-url" placeholder="https://...">
+
+      <div class="adm-sec-t" style="margin-top:8px;">자세히 보기 항목 (선택)</div>
+      <div style="font-size:11px;color:var(--text4);margin:-4px 2px 10px;">입력한 항목만 상세의 표로 나와요. 비우면 표에서 생략됩니다.</div>
+      <div class="adm-label">일시</div>
+      <input class="adm-input" id="ap-f-date" placeholder="예: 2026-06-04 ~ 2026-06-25">
+      <div class="adm-label">장소</div>
+      <input class="adm-input" id="ap-f-place" placeholder="예: 서울특별시 강남구 테헤란로8길 36 3층">
+      <div class="adm-label">대상</div>
+      <input class="adm-input" id="ap-f-target" placeholder="예: 연령무관 / 1인가구 멤버십 회원 7명">
+      <div style="display:flex;gap:9px;">
+        <div style="flex:1;"><div class="adm-label">모집 인원</div><input class="adm-input" id="ap-f-count" placeholder="예: 7"></div>
+        <div style="flex:1;"><div class="adm-label">참가비</div><input class="adm-input" id="ap-f-fee" placeholder="예: 무료"></div>
+      </div>
+      <div style="display:flex;gap:9px;">
+        <div style="flex:1;"><div class="adm-label">회차</div><input class="adm-input" id="ap-f-round" placeholder="예: 4"></div>
+        <div style="flex:1;"><div class="adm-label">신청 방법</div><input class="adm-input" id="ap-f-method" placeholder="예: 온라인"></div>
+      </div>
+      <div class="adm-label">문의</div>
+      <input class="adm-input" id="ap-f-contact" placeholder="예: 강남구 1인가구 커뮤니티센터 02-552-1101">
+
       <button class="adm-save" onclick="adminCreatePost()">게시물 등록</button>
       <button class="adm-save" id="ap-cancel" onclick="adminCancelEdit()" style="display:none;background:var(--text4);margin-top:6px;">수정 취소</button>
     </div>
@@ -3223,6 +3243,8 @@ async function renderAdminPosts(){
         <option value="부산">부산</option>
         <option value="전국">전국(공통)</option>
       </select>
+      <div class="adm-label">시·군·구</div>
+      <input class="adm-input" id="adm-f-district" placeholder="예: 강남구 (비우면 전체)" onkeydown="if(event.key==='Enter')loadAdminPostList()">
       <div class="adm-label">제목 검색</div>
       <input class="adm-input" id="adm-search" placeholder="제목 입력 후 Enter" onkeydown="if(event.key==='Enter')loadAdminPostList()">
       <div id="adm-post-list"><div style="color:var(--text4);padding:14px;text-align:center;">불러오는 중…</div></div>
@@ -3242,10 +3264,12 @@ async function loadAdminPostList(){
   const box=document.getElementById('adm-post-list');
   const kw = (document.getElementById('adm-search')?.value || '').trim();
   const fcity = (document.getElementById('adm-f-city')?.value || '').trim();
+  const fdist = (document.getElementById('adm-f-district')?.value || '').trim();
   let q = supa.from('policies')
     .select('id,title,region_city,region_district,is_active,category,source')
     .order('updated_at',{ascending:false}).limit(100);
   if(fcity) q = q.eq('region_city', fcity);
+  if(fdist) q = q.ilike('region_district', `%${fdist}%`);
   if(kw) q = q.ilike('title', `%${kw}%`);
   const { data, error } = await q;
   if(error){ box.innerHTML='<div style="color:#C0392B;padding:14px;">조회 실패: '+error.message+'</div>'; return; }
@@ -3271,6 +3295,22 @@ async function loadAdminPostList(){
 }
 async function adminCreatePost(){
   const v=id=>document.getElementById(id).value.trim();
+  // 자세히 보기 항목 → "라벨 : 값" 텍스트로 합침 (상세 화면이 이 라벨을 표로 파싱)
+  const buildDetail = (intro)=>{
+    const parts=[];
+    const add=(label,id)=>{ const val=v(id); if(val) parts.push(`${label} : ${val}`); };
+    add('일시','ap-f-date');
+    add('신청방법','ap-f-method');
+    add('모집인원','ap-f-count');
+    add('참가비','ap-f-fee');
+    add('회차','ap-f-round');
+    add('장소','ap-f-place');
+    add('대상','ap-f-target');
+    add('문의','ap-f-contact');
+    const fieldText = parts.join('  ');
+    // intro(상세 내용) + 구조화 필드. 둘 다 있으면 본문 먼저, 그다음 라벨들
+    return [intro, fieldText].filter(Boolean).join('  ');
+  };
   const title=v('ap-title');
   if(!title){ toast('제목을 입력해주세요'); return; }
   const city=v('ap-city');
@@ -3284,7 +3324,7 @@ async function adminCreatePost(){
       region_district: v('ap-district') || null,
       category: v('ap-cat'),
       benefit_summary: v('ap-desc') || title,
-      benefit_detail: v('ap-detail') || v('ap-desc') || '',
+      benefit_detail: buildDetail(v('ap-detail') || v('ap-desc') || ''),
       apply_url: v('ap-url') || null,
       apply_start: v('ap-start') || null,
       apply_end: v('ap-end') || null,
@@ -3308,7 +3348,7 @@ async function adminCreatePost(){
     region_district: v('ap-district') || null,
     category: v('ap-cat'),
     benefit_summary: v('ap-desc') || title,
-    benefit_detail: v('ap-detail') || v('ap-desc') || '',
+    benefit_detail: buildDetail(v('ap-detail') || v('ap-desc') || ''),
     apply_method: 'online',
     apply_url: v('ap-url') || null,
     apply_start: v('ap-start') || null,
@@ -3321,8 +3361,26 @@ async function adminCreatePost(){
   const { error } = await supa.from('policies').upsert(row, { onConflict:'id' });
   if(error){ toast('등록 실패: '+error.message); return; }
   toast('게시물을 등록했어요 ✅');
-  ['ap-title','ap-desc','ap-district','ap-org','ap-start','ap-end','ap-detail','ap-url'].forEach(i=>document.getElementById(i).value='');
+  ['ap-title','ap-desc','ap-district','ap-org','ap-start','ap-end','ap-detail','ap-url','ap-f-date','ap-f-place','ap-f-target','ap-f-count','ap-f-fee','ap-f-round','ap-f-method','ap-f-contact'].forEach(i=>document.getElementById(i).value='');
   loadAdminPostList();
+}
+/* 수정 시: benefit_detail("일시 : 값  장소 : 값…")을 본문 intro + 라벨 값으로 분해 */
+function _adminSplitDetail(text){
+  const labels = ['일시','신청방법','모집인원','참가비','회차','장소','대상','문의'];
+  const out = { intro:'' };
+  if(!text){ return out; }
+  // 라벨들의 시작 위치를 찾아 분리. 첫 라벨 앞부분은 intro.
+  const re = new RegExp('(' + labels.join('|') + ')\\s*[:：]\\s*', 'g');
+  const marks = [];
+  let m;
+  while((m = re.exec(text))){ marks.push({ label:m[1], start:m.index, valStart:re.lastIndex }); }
+  if(!marks.length){ out.intro = text.trim(); return out; }
+  out.intro = text.slice(0, marks[0].start).trim();
+  for(let i=0;i<marks.length;i++){
+    const end = (i+1<marks.length) ? marks[i+1].start : text.length;
+    out[marks[i].label] = text.slice(marks[i].valStart, end).trim();
+  }
+  return out;
 }
 /* 수정 버튼: 해당 행 전체를 불러와 폼에 채우고 편집 모드로 전환 */
 async function adminEditPost(id){
@@ -3341,7 +3399,17 @@ async function adminEditPost(id){
   set('ap-org', data.org);
   set('ap-start', data.apply_start);
   set('ap-end', data.apply_end);
-  set('ap-detail', data.benefit_detail);
+  // benefit_detail을 본문(intro) + 구조화 항목으로 분해해서 각 칸에 복원
+  const parsed = _adminSplitDetail(data.benefit_detail || '');
+  set('ap-detail', parsed.intro);
+  set('ap-f-date', parsed['일시']);
+  set('ap-f-method', parsed['신청방법']);
+  set('ap-f-count', parsed['모집인원']);
+  set('ap-f-fee', parsed['참가비']);
+  set('ap-f-round', parsed['회차']);
+  set('ap-f-place', parsed['장소']);
+  set('ap-f-target', parsed['대상']);
+  set('ap-f-contact', parsed['문의']);
   set('ap-url', data.apply_url);
   document.getElementById('ap-form-title').textContent = '게시물 수정';
   document.getElementById('ap-cancel').style.display = 'block';
@@ -3350,7 +3418,7 @@ async function adminEditPost(id){
 }
 function adminCancelEdit(){
   document.getElementById('ap-edit-id').value='';
-  ['ap-title','ap-desc','ap-district','ap-org','ap-start','ap-end','ap-detail','ap-url'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
+  ['ap-title','ap-desc','ap-district','ap-org','ap-start','ap-end','ap-detail','ap-url','ap-f-date','ap-f-place','ap-f-target','ap-f-count','ap-f-fee','ap-f-round','ap-f-method','ap-f-contact'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
   const t=document.getElementById('ap-form-title'); if(t) t.textContent='새 게시물 등록';
   const c=document.getElementById('ap-cancel'); if(c) c.style.display='none';
 }
