@@ -353,6 +353,11 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 .sort-btn{font-family:inherit;font-size:11px;padding:5px 9px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text4);cursor:pointer;}
 /* ── 관리자 ── */
 .adm-tabs{position:absolute;top:52px;left:0;right:0;height:52px;display:flex;gap:6px;padding:8px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;}
+#sc-admin .scroll-area{top:104px;}
+#sc-admin .pg-body{padding-top:16px;}
+.adm-subtabs{display:flex;gap:6px;margin-bottom:14px;}
+.adm-subtab{flex:1;font-family:inherit;font-size:13px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--text4);border-radius:8px;padding:9px 0;cursor:pointer;}
+.adm-subtab.on{background:var(--saesak);color:#fff;border-color:var(--saesak);}
 .adm-tab{flex:1;font-family:inherit;font-size:13px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--text4);border-radius:8px;cursor:pointer;}
 .adm-tab.on{background:var(--dandan);color:#fff;border-color:var(--dandan);}
 .adm-kpis{display:flex;gap:8px;margin-bottom:16px;}
@@ -3177,42 +3182,70 @@ const ADM_CITIES = { '서울':'서울특별시','경기':'경기도','부산':'�
 async function renderAdminPosts(){
   const el=document.getElementById('adm-posts');
   el.innerHTML=`
-    <div class="adm-sec-t" id="ap-form-title">새 게시물 등록</div>
-    <input type="hidden" id="ap-edit-id" value="">
-    <div class="adm-label">제목 *</div>
-    <input class="adm-input" id="ap-title" placeholder="예: 1인가구 집밥 클래스">
-    <div class="adm-label">한줄 설명</div>
-    <input class="adm-input" id="ap-desc" placeholder="카드에 보일 짧은 설명">
-    <div class="adm-label">지역 *</div>
-    <select class="adm-input" id="ap-city">${Object.keys(ADM_CITIES).map(c=>`<option value="${c}">${ADM_CITIES[c]}</option>`).join('')}</select>
-    <input class="adm-input" id="ap-district" placeholder="시·군·구 (선택, 예: 강남구)">
-    <div class="adm-label">카테고리</div>
-    <select class="adm-input" id="ap-cat">${ADM_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
-    <div class="adm-label">기관명</div>
-    <input class="adm-input" id="ap-org" placeholder="예: ○○구 가족센터">
-    <div style="display:flex;gap:9px;">
-      <div style="flex:1;"><div class="adm-label">신청 시작</div><input class="adm-input" id="ap-start" type="date"></div>
-      <div style="flex:1;"><div class="adm-label">신청 마감</div><input class="adm-input" id="ap-end" type="date"></div>
+    <div class="adm-subtabs">
+      <button class="adm-subtab on" data-pt="create" onclick="switchPostSub('create')">게시물 등록</button>
+      <button class="adm-subtab" data-pt="manage" onclick="switchPostSub('manage')">게시물 관리</button>
     </div>
-    <div class="adm-label">상세 내용</div>
-    <textarea class="adm-input" id="ap-detail" rows="4" placeholder="혜택 본문 내용"></textarea>
-    <div class="adm-label">신청 링크 (URL)</div>
-    <input class="adm-input" id="ap-url" placeholder="https://...">
-    <button class="adm-save" onclick="adminCreatePost()">게시물 등록</button>
-    <button class="adm-save" id="ap-cancel" onclick="adminCancelEdit()" style="display:none;background:var(--text4);margin-top:6px;">수정 취소</button>
-    <div class="adm-sec-t">게시물 관리 (전체)</div>
-    <input class="adm-input" id="adm-search" placeholder="제목으로 검색 후 Enter" onkeydown="if(event.key==='Enter')loadAdminPostList()">
-    <div id="adm-post-list"><div style="color:var(--text4);padding:14px;text-align:center;">불러오는 중…</div></div>
+
+    <div id="ap-pane-create">
+      <div class="adm-sec-t" id="ap-form-title">새 게시물 등록</div>
+      <input type="hidden" id="ap-edit-id" value="">
+      <div class="adm-label">제목 *</div>
+      <input class="adm-input" id="ap-title" placeholder="예: 1인가구 집밥 클래스">
+      <div class="adm-label">한줄 설명</div>
+      <input class="adm-input" id="ap-desc" placeholder="카드에 보일 짧은 설명">
+      <div class="adm-label">지역 *</div>
+      <select class="adm-input" id="ap-city">${Object.keys(ADM_CITIES).map(c=>`<option value="${c}">${ADM_CITIES[c]}</option>`).join('')}</select>
+      <input class="adm-input" id="ap-district" placeholder="시·군·구 (선택, 예: 강남구)">
+      <div class="adm-label">카테고리</div>
+      <select class="adm-input" id="ap-cat">${ADM_CATS.map(c=>`<option>${c}</option>`).join('')}</select>
+      <div class="adm-label">기관명</div>
+      <input class="adm-input" id="ap-org" placeholder="예: ○○구 가족센터">
+      <div style="display:flex;gap:9px;">
+        <div style="flex:1;"><div class="adm-label">신청 시작</div><input class="adm-input" id="ap-start" type="date"></div>
+        <div style="flex:1;"><div class="adm-label">신청 마감</div><input class="adm-input" id="ap-end" type="date"></div>
+      </div>
+      <div class="adm-label">상세 내용</div>
+      <textarea class="adm-input" id="ap-detail" rows="4" placeholder="혜택 본문 내용"></textarea>
+      <div class="adm-label">신청 링크 (URL)</div>
+      <input class="adm-input" id="ap-url" placeholder="https://...">
+      <button class="adm-save" onclick="adminCreatePost()">게시물 등록</button>
+      <button class="adm-save" id="ap-cancel" onclick="adminCancelEdit()" style="display:none;background:var(--text4);margin-top:6px;">수정 취소</button>
+    </div>
+
+    <div id="ap-pane-manage" style="display:none;">
+      <div class="adm-sec-t">게시물 관리</div>
+      <div class="adm-label">지역</div>
+      <select class="adm-input" id="adm-f-city" onchange="loadAdminPostList()">
+        <option value="">전체 지역</option>
+        <option value="서울">서울</option>
+        <option value="경기">경기</option>
+        <option value="부산">부산</option>
+        <option value="전국">전국(공통)</option>
+      </select>
+      <div class="adm-label">제목 검색</div>
+      <input class="adm-input" id="adm-search" placeholder="제목 입력 후 Enter" onkeydown="if(event.key==='Enter')loadAdminPostList()">
+      <div id="adm-post-list"><div style="color:var(--text4);padding:14px;text-align:center;">불러오는 중…</div></div>
+    </div>
   `;
-  loadAdminPostList();
+  switchPostSub('create');
+}
+/* 게시물 서브탭 전환 (등록 / 관리) */
+function switchPostSub(sub){
+  document.querySelectorAll('.adm-subtab').forEach(b=>b.classList.toggle('on', b.dataset.pt===sub));
+  document.getElementById('ap-pane-create').style.display = sub==='create' ? 'block' : 'none';
+  document.getElementById('ap-pane-manage').style.display = sub==='manage' ? 'block' : 'none';
+  if(sub==='manage') loadAdminPostList();
 }
 let _admListCache = [];
 async function loadAdminPostList(){
   const box=document.getElementById('adm-post-list');
   const kw = (document.getElementById('adm-search')?.value || '').trim();
+  const fcity = (document.getElementById('adm-f-city')?.value || '').trim();
   let q = supa.from('policies')
     .select('id,title,region_city,region_district,is_active,category,source')
     .order('updated_at',{ascending:false}).limit(100);
+  if(fcity) q = q.eq('region_city', fcity);
   if(kw) q = q.ilike('title', `%${kw}%`);
   const { data, error } = await q;
   if(error){ box.innerHTML='<div style="color:#C0392B;padding:14px;">조회 실패: '+error.message+'</div>'; return; }
@@ -3230,7 +3263,7 @@ async function loadAdminPostList(){
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;">
         <button class="adm-toggle" onclick="adminEditPost('${p.id}')">수정</button>
-        <button class="adm-toggle ${on?'on':''}" onclick="adminTogglePost('${p.id}',${on})">${on?'노출중':'숨김'}</button>
+        <button class="adm-toggle ${on?'':'on'}" onclick="adminTogglePost('${p.id}',${on})">${on?'숨김':'되살리기'}</button>
         ${isAdmin?`<button class="adm-x" onclick="adminDeletePost('${p.id}')">삭제</button>`:''}
       </div>
     </div>`;
@@ -3312,7 +3345,7 @@ async function adminEditPost(id){
   set('ap-url', data.apply_url);
   document.getElementById('ap-form-title').textContent = '게시물 수정';
   document.getElementById('ap-cancel').style.display = 'block';
-  document.querySelector('#sc-admin .scroll-area, #sc-admin')?.scrollTo({top:0,behavior:'smooth'});
+  switchPostSub('create');   // 폼이 있는 등록 탭으로 전환
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function adminCancelEdit(){
