@@ -293,54 +293,6 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 .as-btns{display:flex;flex-direction:column;gap:9px;}
 .as-skip{display:block;text-align:center;padding:10px;font-size:13px;color:var(--text4);background:none;border:none;cursor:pointer;font-family:inherit;}
 
-/* ── 광고 배너 구좌 ── */
-.ad-banner-wrap{margin:12px 16px 4px;}
-.ad-slider{
-  display:flex;gap:12px;
-  overflow-x:auto;
-  scroll-snap-type:x mandatory;
-  -webkit-overflow-scrolling:touch;
-  padding-bottom:2px;
-}
-.ad-slider::-webkit-scrollbar{display:none;}
-.ad-card{
-  min-width:calc(100% - 32px);
-  flex-shrink:0;
-  scroll-snap-align:start;
-  border-radius:var(--r-lg);
-  overflow:hidden;
-  cursor:pointer;
-  position:relative;
-}
-/* 온보딩 배너 */
-.ad-onboarding{
-  background:linear-gradient(135deg,#1C3826 0%,#2B5C3A 60%,#4A9960 100%);
-  padding:14px 18px;
-  min-height:76px;
-  display:flex;align-items:center;justify-content:space-between;
-}
-.ad-ob-text{}
-.ad-ob-eyebrow{font-size:10px;font-weight:400;color:rgba(255,255,255,.55);letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px;}
-.ad-ob-title{font-size:15px;font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1.3;}
-.ad-ob-sub{font-size:11px;color:rgba(255,255,255,.65);line-height:1.4;margin-top:2px;}
-.ad-ob-deco{
-  font-size:36px;opacity:.22;flex-shrink:0;margin-left:8px;line-height:1;
-}
-/* 일반 광고 슬롯 */
-.ad-slot{
-  background:var(--cream);
-  border:1.5px dashed var(--border);
-  border-radius:var(--r-lg);
-  padding:14px 18px;min-height:76px;
-  display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;
-}
-.ad-slot-label{font-size:10px;font-weight:400;color:var(--text4);letter-spacing:.1em;text-transform:uppercase;}
-.ad-slot-title{font-size:14px;font-weight:800;color:var(--text2);}
-.ad-slot-sub{font-size:11px;color:var(--text4);}
-/* 슬라이더 인디케이터 */
-.ad-dots{display:flex;gap:5px;justify-content:center;margin-top:7px;}
-.ad-dot{width:4px;height:4px;border-radius:50%;background:var(--border);transition:background .2s,width .2s;}
-.ad-dot.on{width:12px;border-radius:2px;background:var(--dandan);}
 
 /* ── 내정보 수정 ── */
 .edit-section{padding:20px 0;border-bottom:1px solid var(--border);}
@@ -356,6 +308,11 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 #sc-admin .scroll-area{top:104px;}
 #sc-admin .pg-body{padding-top:0;margin-top:60px;}
 .adm-subtabs{display:flex;gap:6px;margin-bottom:14px;}
+/* ── 브랜드 메시지 + 피드백 CTA ── */
+.brand-note{margin:22px 16px 8px;padding:16px 18px;background:var(--mint);border-radius:14px;font-size:12.5px;line-height:1.7;color:var(--text2);letter-spacing:-.01em;}
+.brand-note b{color:var(--dandan);font-weight:700;}
+.fb-cta{display:flex;align-items:center;justify-content:center;gap:7px;width:calc(100% - 32px);margin:10px 16px 4px;padding:13px;background:#fff;border:1.5px solid var(--saesak);color:var(--dandan);border-radius:12px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;}
+.fb-cta:active{background:var(--mint);}
 /* ── 피드백 설문 시트 ── */
 .sv-overlay{position:absolute;inset:0;z-index:60;background:rgba(28,56,38,.42);display:flex;align-items:flex-end;animation:svFade .2s ease;}
 @keyframes svFade{from{opacity:0}to{opacity:1}}
@@ -707,6 +664,10 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
       <div class="auth-or" style="display:none;"><span>또는</span></div>
       <button class="btn-email" onclick="startSignup('email')" style="display:none;">✉️ 이메일로 시작하기</button>
     </div>
+    <div class="brand-note" style="margin:20px 0 0;">
+      단단은 혼자 사는 평범한 사람이 뚱땅뚱땅 만들었어요.<br>
+      결과가 조금 삐걱거려도 너그럽게 넘어가 주시고, 따뜻한 피드백을 보내주시면 <b>조금씩 발전시켜볼게요.</b>
+    </div>
     <div class="auth-ft">
       <p>가입 시 <a href="#">서비스 이용약관</a> 및 <a href="#">개인정보 처리방침</a>에 동의하게 됩니다.</p>
     </div>
@@ -904,6 +865,10 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
         <div id="edit-region-notice"></div>
       </div>
 
+      <div style="text-align:center;padding:24px 0 8px;">
+        <button onclick="confirmWithdraw()" style="background:none;border:none;cursor:pointer;font-family:inherit;font-size:12.5px;color:var(--text4);text-decoration:underline;text-underline-offset:3px;padding:6px;">회원 탈퇴하기</button>
+      </div>
+
     </div>
   </div>
 </div>
@@ -990,39 +955,11 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
       이 지역으로 설정하기
     </button>
 
-    <!-- 광고 배너 구좌 (지역 선택 화면 하단) -->
-    <div class="ad-banner-wrap" style="margin-top:28px;">
-      <div class="ad-slider" id="ad-slider">
-        <div class="ad-card" onclick="goTo('sc-splash')">
-          <div class="ad-onboarding">
-            <div class="ad-ob-text">
-              <div class="ad-ob-eyebrow">단단 소개</div>
-              <div class="ad-ob-title">30초 만에 숨겨진 내 혜택 찾기</div>
-              <div class="ad-ob-sub">나이·지역·소득으로 딱 맞는 복지 혜택을 골라드려요 →</div>
-            </div>
-            <div class="ad-ob-deco">🌱</div>
-          </div>
-        </div>
-        <div class="ad-card">
-          <div class="ad-slot">
-            <div class="ad-slot-label">광고</div>
-            <div class="ad-slot-title">광고 배너 구좌 A</div>
-            <div class="ad-slot-sub">파트너사 광고 영역</div>
-          </div>
-        </div>
-        <div class="ad-card">
-          <div class="ad-slot">
-            <div class="ad-slot-label">광고</div>
-            <div class="ad-slot-title">광고 배너 구좌 B</div>
-            <div class="ad-slot-sub">파트너사 광고 영역</div>
-          </div>
-        </div>
-      </div>
-      <div class="ad-dots" id="ad-dots">
-        <div class="ad-dot on"></div>
-        <div class="ad-dot"></div>
-        <div class="ad-dot"></div>
-      </div>
+    <!-- 피드백 + 브랜드 메시지 -->
+    <button class="fb-cta" onclick="openSurvey(true)">💬 피드백 보내기</button>
+    <div class="brand-note">
+      단단은 혼자 사는 평범한 사람이 뚱땅뚱땅 만들었어요.<br>
+      결과가 조금 삐걱거려도 너그럽게 넘어가 주시고, 따뜻한 피드백을 보내주시면 <b>조금씩 발전시켜볼게요.</b>
     </div>
 
   </div><!-- /scroll-area -->
@@ -1773,7 +1710,7 @@ function goTo(id, back=false){
   if(id==='sc-feed')     refreshFeedUI();
   if(id==='sc-my')       renderMyPage();
   if(id==='sc-wish')     renderWish();
-  if(id==='sc-location') { openLocationScreen(); setTimeout(()=>initAdSlider(document.getElementById('ad-slider'), document.querySelectorAll('#ad-dots .ad-dot')), 60); }
+  if(id==='sc-location') { openLocationScreen(); }
 }
 function goBack(){
   if(!hist.length) return;
@@ -2023,18 +1960,6 @@ function toggleAll(){
   terms_.forEach((_,i)=>document.getElementById('chk-'+i).className='chk'+(terms_[i]?' on':''));
   document.getElementById('chk-all').className='chk'+(!a?' on':'');
   document.getElementById('terms-next').className='btn-primary'+(canProceedTerms()?'':' off');
-}
-
-/* ═══════════════════════════════════════
-   광고 슬라이더 인디케이터 — 중복 등록 방지
-═══════════════════════════════════════ */
-function initAdSlider(slider, dots){
-  if(!slider || slider._adInited) return;
-  slider._adInited = true;
-  slider.addEventListener('scroll', ()=>{
-    const idx = Math.round(slider.scrollLeft / slider.offsetWidth);
-    dots.forEach((d,i)=>d.classList.toggle('on', i===idx));
-  }, {passive:true});
 }
 
 /* ═══════════════════════════════════════
@@ -2863,22 +2788,26 @@ const SURVEY_Q = [
 let _svStep = 0;            // 0 = 인트로, 1..N = 문항, N+1 = 완료
 let _svAnswers = {};
 
+let _svForced = false;
 function maybeShowSurvey(){
   try {
     if(localStorage.getItem('dandan_feedback_seen')) return;  // 이미 봤으면 끝
   } catch(_){}
   // 첫 긍정 경험(찜) 직후, 흐름 안 끊게 3초 뒤 부드럽게
-  setTimeout(openSurvey, 3000);
+  setTimeout(()=>openSurvey(false), 3000);
 }
-function openSurvey(){
-  try { if(localStorage.getItem('dandan_feedback_seen')) return; } catch(_){}
+function openSurvey(force){
+  _svForced = !!force;
+  // 자동 노출(찜)일 때만 1회 제한. 피드백 버튼(force)은 항상 열림.
+  if(!force){ try { if(localStorage.getItem('dandan_feedback_seen')) return; } catch(_){} }
   _svStep = 0; _svAnswers = {};
   document.getElementById('survey-overlay').style.display='flex';
   renderSurveyStep();
 }
 function closeSurvey(reason){
   document.getElementById('survey-overlay').style.display='none';
-  try { localStorage.setItem('dandan_feedback_seen','1'); } catch(_){}
+  // 자동 노출만 '봤음' 기록. 피드백 버튼으로 연 건 기록하지 않아 N번 제출 가능.
+  if(!_svForced){ try { localStorage.setItem('dandan_feedback_seen','1'); } catch(_){} }
   if(reason==='skip') track('click','survey_skip');
 }
 function _svSetBar(){
@@ -2975,7 +2904,7 @@ async function submitSurvey(){
       if(Object.keys(o).length) answers[q.key]=o;
     }
   }
-  try { localStorage.setItem('dandan_feedback_seen','1'); } catch(_){}
+  if(!_svForced){ try { localStorage.setItem('dandan_feedback_seen','1'); } catch(_){} }
   track('click','survey_done');
   try {
     await supa.from('feedback').insert({
@@ -3165,7 +3094,11 @@ function renderMyPage(){
         <div class="mi" onclick="toast('개인정보 처리방침')"><div class="mi-l"><span class="mi-ico">🔒</span> 개인정보 처리방침</div><span class="mi-arr">›</span></div>
         ${user.is_admin ? `<div class="mi" onclick="openAdmin()"><div class="mi-l"><span class="mi-ico">🛠️</span> 관리자</div><span class="mi-arr">›</span></div>` : ''}
         <div class="mi" onclick="logout()"><div class="mi-l"><span class="mi-ico">🚪</span> 로그아웃</div><span class="mi-arr">›</span></div>
-        <div class="mi" onclick="confirmWithdraw()"><div class="mi-l"><span class="mi-ico" style="opacity:.6;">👋</span> <span style="color:var(--text4);">회원 탈퇴</span></div><span class="mi-arr">›</span></div>
+      </div>
+      <button class="fb-cta" onclick="openSurvey(true)">💬 피드백 보내기</button>
+      <div class="brand-note">
+        단단은 혼자 사는 평범한 사람이 뚱땅뚱땅 만들었어요.<br>
+        결과가 조금 삐걱거려도 너그럽게 넘어가 주시고, 따뜻한 피드백을 보내주시면 <b>조금씩 발전시켜볼게요.</b>
       </div>
     </div>`;
 }
