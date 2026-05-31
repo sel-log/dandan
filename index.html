@@ -356,6 +356,40 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 #sc-admin .scroll-area{top:104px;}
 #sc-admin .pg-body{padding-top:0;margin-top:60px;}
 .adm-subtabs{display:flex;gap:6px;margin-bottom:14px;}
+/* ── 피드백 설문 시트 ── */
+.sv-overlay{position:absolute;inset:0;z-index:60;background:rgba(28,56,38,.42);display:flex;align-items:flex-end;animation:svFade .2s ease;}
+@keyframes svFade{from{opacity:0}to{opacity:1}}
+.sv-sheet{width:100%;max-width:430px;margin:0 auto;background:var(--cream);border-radius:22px 22px 0 0;padding:18px 20px calc(24px + env(safe-area-inset-bottom,0px));box-shadow:0 -8px 30px rgba(0,0,0,.18);animation:svUp .32s cubic-bezier(.2,.8,.2,1);max-height:88%;overflow-y:auto;}
+@keyframes svUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sv-head{display:flex;align-items:center;gap:12px;margin-bottom:18px;}
+.sv-progress{flex:1;height:6px;background:#E3E0D8;border-radius:99px;overflow:hidden;}
+.sv-progress-bar{height:100%;width:0;background:var(--saesak);border-radius:99px;transition:width .3s ease;}
+.sv-close{width:30px;height:30px;border:none;background:#E3E0D8;border-radius:50%;color:var(--text2);font-size:14px;cursor:pointer;flex-shrink:0;}
+.sv-intro-ico{font-size:34px;margin-bottom:8px;}
+.sv-intro-t{font-size:19px;font-weight:800;color:var(--text1);letter-spacing:-.02em;line-height:1.35;margin-bottom:8px;}
+.sv-intro-s{font-size:13.5px;color:var(--text3);line-height:1.6;margin-bottom:6px;}
+.sv-time{display:inline-block;font-size:12px;font-weight:700;color:var(--saesak);background:var(--mint);padding:5px 11px;border-radius:99px;margin-bottom:20px;}
+.sv-q-step{font-size:12px;font-weight:700;color:var(--saesak);margin-bottom:6px;}
+.sv-q-t{font-size:17px;font-weight:800;color:var(--text1);letter-spacing:-.02em;line-height:1.4;margin-bottom:4px;}
+.sv-q-s{font-size:12.5px;color:var(--text4);margin-bottom:16px;}
+.sv-opts{display:flex;flex-direction:column;gap:9px;margin-bottom:8px;}
+.sv-opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font-family:inherit;font-size:14.5px;font-weight:600;color:var(--text2);background:#fff;border:1.5px solid var(--border);border-radius:12px;padding:14px 15px;cursor:pointer;transition:all .15s;}
+.sv-opt:active{transform:scale(.99);}
+.sv-opt.sel{border-color:var(--saesak);background:var(--mint);color:var(--dandan);}
+.sv-opt .sv-check{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;}
+.sv-opt.sel .sv-check{background:var(--saesak);border-color:var(--saesak);}
+.sv-etc-input{width:100%;font-family:inherit;font-size:14px;padding:12px 14px;border:1.5px solid var(--border);border-radius:12px;box-sizing:border-box;background:#fff;margin-top:2px;}
+.sv-etc-input:focus{outline:none;border-color:var(--saesak);}
+.sv-textarea{width:100%;font-family:inherit;font-size:14px;padding:13px 14px;border:1.5px solid var(--border);border-radius:12px;box-sizing:border-box;background:#fff;resize:none;line-height:1.5;}
+.sv-textarea:focus{outline:none;border-color:var(--saesak);}
+.sv-actions{display:flex;gap:9px;margin-top:18px;}
+.sv-btn{flex:1;font-family:inherit;font-size:15px;font-weight:700;border-radius:12px;padding:14px;cursor:pointer;border:none;}
+.sv-btn-skip{background:transparent;color:var(--text4);border:1.5px solid var(--border);flex:0 0 auto;padding:14px 18px;}
+.sv-btn-next{background:var(--dandan);color:#fff;}
+.sv-btn-next:disabled{background:#C5CDC7;cursor:default;}
+.sv-done-ico{font-size:40px;margin-bottom:10px;}
+.sv-done-t{font-size:20px;font-weight:800;color:var(--text1);letter-spacing:-.02em;line-height:1.4;margin-bottom:10px;}
+.sv-done-s{font-size:14px;color:var(--text3);line-height:1.65;margin-bottom:22px;}
 .adm-subtab{flex:1;font-family:inherit;font-size:13px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--text4);border-radius:8px;padding:9px 0;cursor:pointer;}
 .adm-subtab.on{background:var(--saesak);color:#fff;border-color:var(--saesak);}
 .adm-tab{flex:1;font-family:inherit;font-size:13px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--text4);border-radius:8px;cursor:pointer;}
@@ -1035,9 +1069,18 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 </div>
 
 <!-- ══════════════════════════════
-  MYPAGE (비로그인 / 로그인 동적 렌더)
+  FEEDBACK SURVEY (하단 시트, 단계형)
 ══════════════════════════════ -->
-<div class="screen" id="sc-my">
+<div id="survey-overlay" class="sv-overlay" style="display:none;">
+  <div class="sv-sheet">
+    <div class="sv-head">
+      <div class="sv-progress"><div class="sv-progress-bar" id="sv-bar"></div></div>
+      <button class="sv-close" onclick="closeSurvey('skip')" aria-label="닫기">✕</button>
+    </div>
+    <div class="sv-body" id="sv-body"></div>
+  </div>
+</div>
+
   <div class="pg-top"><h2>내 정보</h2></div>
   <div class="scroll-area has-nav">
     <div id="my-body"></div>
@@ -1061,12 +1104,14 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
     <button class="adm-tab on" data-tab="members" onclick="switchAdminTab('members')">회원</button>
     <button class="adm-tab" data-tab="posts" onclick="switchAdminTab('posts')">게시물</button>
     <button class="adm-tab" data-tab="stats" onclick="switchAdminTab('stats')">트래킹</button>
+    <button class="adm-tab" data-tab="feedback" onclick="switchAdminTab('feedback')">피드백</button>
   </div>
   <div class="scroll-area" style="top:104px;">
     <div class="pg-body">
       <div id="adm-members" class="adm-pane"></div>
       <div id="adm-posts" class="adm-pane" style="display:none;"></div>
       <div id="adm-stats" class="adm-pane" style="display:none;"></div>
+      <div id="adm-feedback" class="adm-pane" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -2745,7 +2790,7 @@ function toggleDLike(){
 function toggleLike(id,btn){
   toggleLikeById(id);
   btn.classList.toggle('liked',liked.has(id));
-  if(liked.has(id)) toast('단단히 챙겨뒀어요! ✅');
+  if(liked.has(id)){ toast('단단히 챙겨뒀어요! ✅'); maybeShowSurvey(); }
   renderWish();
 }
 function toggleLikeById(id){
@@ -2772,8 +2817,172 @@ function toggleLikeById(id){
 }
 
 /* ═══════════════════════════════════════
-   WISHLIST
+   FEEDBACK SURVEY (단계형 · 첫 찜 직후 1회)
 ═══════════════════════════════════════ */
+// 문항: 객관식은 3~4개 + 기타(직접입력), 마지막은 자유서술
+const SURVEY_Q = [
+  {
+    key: 'need',
+    type: 'single',
+    title: '혼자 살면서 가장 아쉬운 건?',
+    sub: '하나만 골라주세요',
+    options: ['갑자기 아플 때 도움', '끼니·집밥 챙기기', '외로움·말동무', '집안일·생활 수리'],
+    etc: true,
+  },
+  {
+    key: 'info',
+    type: 'multi',
+    title: '어떤 정보가 더 있으면 좋을까요?',
+    sub: '여러 개 골라도 돼요',
+    options: ['주거·월세 지원', '건강·심리 상담', '같이 할 모임·취미', '금융·생활비'],
+    etc: true,
+  },
+  {
+    key: 'moment',
+    type: 'single',
+    title: '혼자라서 가장 막막했던 순간은?',
+    sub: '가장 가까운 것 하나',
+    options: ['아플 때', '큰 결정을 혼자 내릴 때', '집에 문제가 생겼을 때', '특별한 날 혼자일 때'],
+    etc: true,
+  },
+  {
+    key: 'free',
+    type: 'text',
+    title: '혼자 사는 당신에게 필요한 것,\n자유롭게 적어주세요',
+    sub: '선택이에요. 한 줄도 좋아요.',
+    placeholder: '예: 밤에 아플 때 바로 물어볼 곳이 있었으면…',
+  },
+];
+
+let _svStep = 0;            // 0 = 인트로, 1..N = 문항, N+1 = 완료
+let _svAnswers = {};
+
+function maybeShowSurvey(){
+  try {
+    if(localStorage.getItem('dandan_feedback_seen')) return;  // 이미 봤으면 끝
+  } catch(_){}
+  // 첫 긍정 경험(찜) 직후, 흐름 안 끊게 3초 뒤 부드럽게
+  setTimeout(openSurvey, 3000);
+}
+function openSurvey(){
+  try { if(localStorage.getItem('dandan_feedback_seen')) return; } catch(_){}
+  _svStep = 0; _svAnswers = {};
+  document.getElementById('survey-overlay').style.display='flex';
+  renderSurveyStep();
+}
+function closeSurvey(reason){
+  document.getElementById('survey-overlay').style.display='none';
+  try { localStorage.setItem('dandan_feedback_seen','1'); } catch(_){}
+  if(reason==='skip') track('click','survey_skip');
+}
+function _svSetBar(){
+  const total = SURVEY_Q.length;
+  const pct = _svStep===0 ? 4 : Math.round((_svStep/ (total+1))*100);
+  document.getElementById('sv-bar').style.width = pct+'%';
+}
+function renderSurveyStep(){
+  _svSetBar();
+  const body = document.getElementById('sv-body');
+  // 인트로
+  if(_svStep===0){
+    body.innerHTML = `
+      <div class="sv-intro-ico">🌱</div>
+      <div class="sv-intro-t">혼자 사는 당신 이야기,<br>잠깐 들려줄래요?</div>
+      <div class="sv-intro-s">서비스 평가가 아니에요. 혼자 살며 뭐가 필요한지 알려주시면, 단단이 더 챙길 거리를 찾는 데 써요.</div>
+      <span class="sv-time">⏱ ${SURVEY_Q.length*8}초면 충분해요</span>
+      <div class="sv-actions">
+        <button class="sv-btn sv-btn-skip" onclick="closeSurvey('skip')">다음에</button>
+        <button class="sv-btn sv-btn-next" onclick="svNext()">시작하기</button>
+      </div>`;
+    return;
+  }
+  // 완료
+  if(_svStep > SURVEY_Q.length){
+    body.innerHTML = `
+      <div class="sv-done-ico">💚</div>
+      <div class="sv-done-t">단단히 담아뒀어요.</div>
+      <div class="sv-done-s">들려줘서 고마워요. 당신이 남긴 한 마디로<br>단단을 더 발전시켜서 다시 올게요.</div>
+      <div class="sv-actions"><button class="sv-btn sv-btn-next" onclick="closeSurvey('done')">닫기</button></div>`;
+    _svSetBar(); document.getElementById('sv-bar').style.width='100%';
+    return;
+  }
+  // 문항
+  const q = SURVEY_Q[_svStep-1];
+  const cur = _svAnswers[q.key];
+  let inner = `<div class="sv-q-step">${_svStep} / ${SURVEY_Q.length}</div>
+    <div class="sv-q-t">${q.title.replace(/\n/g,'<br>')}</div>
+    <div class="sv-q-s">${q.sub||''}</div>`;
+
+  if(q.type==='text'){
+    inner += `<textarea class="sv-textarea" id="sv-text" rows="4" placeholder="${q.placeholder||''}">${(cur&&cur.text)||''}</textarea>`;
+  } else {
+    const selArr = (cur && cur.options) || [];
+    inner += `<div class="sv-opts">` + q.options.map((o,i)=>{
+      const on = selArr.includes(o);
+      return `<button class="sv-opt ${on?'sel':''}" onclick="svPick(${i})">
+        <span class="sv-check">${on?'✓':''}</span><span>${o}</span></button>`;
+    }).join('');
+    if(q.etc){
+      const etcVal = (cur && cur.etc) || '';
+      inner += `<input class="sv-etc-input" id="sv-etc" placeholder="✏️ 기타 (직접 입력)" value="${etcVal.replace(/"/g,'&quot;')}" oninput="svEtc(this.value)">`;
+    }
+    inner += `</div>`;
+  }
+
+  const isLast = _svStep===SURVEY_Q.length;
+  inner += `<div class="sv-actions">
+      <button class="sv-btn sv-btn-skip" onclick="svNext(true)">건너뛰기</button>
+      <button class="sv-btn sv-btn-next" onclick="svNext()">${isLast?'의견 보내기':'다음'}</button>
+    </div>`;
+  body.innerHTML = inner;
+}
+function _svEnsure(key){ if(!_svAnswers[key]) _svAnswers[key]={options:[],etc:'',text:''}; return _svAnswers[key]; }
+function svPick(i){
+  const q = SURVEY_Q[_svStep-1];
+  const a = _svEnsure(q.key);
+  const val = q.options[i];
+  if(q.type==='single'){ a.options = a.options.includes(val) ? [] : [val]; }
+  else { a.options = a.options.includes(val) ? a.options.filter(x=>x!==val) : [...a.options, val]; }
+  renderSurveyStep();
+}
+function svEtc(v){ _svEnsure(SURVEY_Q[_svStep-1].key).etc = v; }
+function svNext(skip){
+  const q = SURVEY_Q[_svStep-1];
+  if(q && !skip && q.type==='text'){
+    const t = document.getElementById('sv-text');
+    if(t) _svEnsure(q.key).text = t.value.trim();
+  }
+  _svStep++;
+  if(_svStep > SURVEY_Q.length){ submitSurvey(); }
+  renderSurveyStep();
+}
+async function submitSurvey(){
+  // 빈 응답 제거 후 저장
+  const answers = {};
+  for(const q of SURVEY_Q){
+    const a = _svAnswers[q.key];
+    if(!a) continue;
+    if(q.type==='text'){ if(a.text) answers[q.key]={text:a.text}; }
+    else {
+      const o = {};
+      if(a.options && a.options.length) o.options = a.options;
+      if(a.etc) o.etc = a.etc;
+      if(Object.keys(o).length) answers[q.key]=o;
+    }
+  }
+  try { localStorage.setItem('dandan_feedback_seen','1'); } catch(_){}
+  track('click','survey_done');
+  try {
+    await supa.from('feedback').insert({
+      user_id: user?.supabase_uid || null,
+      region_city: (selectedLocation && selectedLocation.city) || null,
+      answers,
+      created_at: new Date().toISOString(),
+    });
+  } catch(e){ console.warn('피드백 저장 실패:', e?.message); }
+}
+
+
 function renderWish(){
   const el=document.getElementById('wish-body');
   const arr=DB.filter(p=>liked.has(p.id));
@@ -3118,13 +3327,67 @@ function openAdmin(){
 }
 function switchAdminTab(tab){
   document.querySelectorAll('.adm-tab').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab));
-  ['members','posts','stats'].forEach(t=>{
+  ['members','posts','stats','feedback'].forEach(t=>{
     const pane=document.getElementById('adm-'+t);
     if(pane) pane.style.display = (t===tab)?'block':'none';
   });
-  if(tab==='members') renderAdminMembers();
-  if(tab==='posts')   renderAdminPosts();
-  if(tab==='stats')   renderAdminStats();
+  if(tab==='members')  renderAdminMembers();
+  if(tab==='posts')    renderAdminPosts();
+  if(tab==='stats')    renderAdminStats();
+  if(tab==='feedback') renderAdminFeedback();
+}
+
+/* ── 피드백 설문 응답 보기 ── */
+async function renderAdminFeedback(){
+  const box=document.getElementById('adm-feedback');
+  box.innerHTML='<div style="color:var(--text4);padding:14px;text-align:center;">불러오는 중…</div>';
+  const { data, error } = await supa.from('feedback')
+    .select('id,user_id,region_city,answers,created_at')
+    .order('created_at',{ascending:false}).limit(500);
+  if(error){ box.innerHTML='<div style="color:#C0392B;padding:14px;">조회 실패: '+error.message+' <br><span style="font-size:11px">feedback 테이블이 없으면 아래 SQL로 먼저 생성하세요.</span></div>'; return; }
+  if(!data.length){ box.innerHTML='<div style="color:var(--text4);padding:14px;text-align:center;">아직 받은 피드백이 없어요</div>'; return; }
+
+  // 객관식 집계
+  const Q = (typeof SURVEY_Q!=='undefined') ? SURVEY_Q : [];
+  const agg = {};   // key -> {opt: count}
+  const etc = {};   // key -> [etc strings]
+  const free = [];  // 자유서술
+  for(const row of data){
+    const ans = row.answers || {};
+    for(const q of Q){
+      const a = ans[q.key]; if(!a) continue;
+      if(q.type==='text'){ if(a.text) free.push(a.text); continue; }
+      agg[q.key] = agg[q.key] || {};
+      (a.options||[]).forEach(o=>{ agg[q.key][o]=(agg[q.key][o]||0)+1; });
+      if(a.etc){ etc[q.key]=etc[q.key]||[]; etc[q.key].push(a.etc); }
+    }
+  }
+  const bar = (n,max)=>`<div style="height:7px;background:var(--mint);border-radius:99px;overflow:hidden;margin-top:3px;"><div style="height:100%;width:${max?Math.round(n/max*100):0}%;background:var(--saesak);"></div></div>`;
+
+  let html = `<div class="adm-row" style="background:var(--cream);"><div><div class="r-sub">받은 응답</div><div class="r-main">${data.length}건</div></div></div>`;
+
+  for(const q of Q){
+    if(q.type==='text') continue;
+    const counts = agg[q.key]||{};
+    const max = Math.max(1, ...Object.values(counts));
+    html += `<div class="adm-sec-t">${q.title.replace(/\n/g,' ')}</div>`;
+    html += q.options.map(o=>{
+      const n=counts[o]||0;
+      return `<div style="margin-bottom:9px;"><div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);"><span>${o}</span><span style="font-weight:700;">${n}</span></div>${bar(n,max)}</div>`;
+    }).join('');
+    if(etc[q.key]&&etc[q.key].length){
+      html += `<div style="font-size:12px;color:var(--text4);margin-top:4px;">기타 ${etc[q.key].length}건: ${etc[q.key].slice(0,8).map(e=>`<span style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:2px 6px;margin:2px;display:inline-block;">${(e||'').replace(/</g,'&lt;')}</span>`).join('')}</div>`;
+    }
+  }
+
+  // 자유서술
+  html += `<div class="adm-sec-t">자유 의견 (${free.length})</div>`;
+  if(free.length){
+    html += free.slice(0,50).map(t=>`<div class="adm-row"><div class="r-main" style="font-weight:500;font-size:13.5px;white-space:normal;line-height:1.5;">${(t||'').replace(/</g,'&lt;')}</div></div>`).join('');
+  } else {
+    html += '<div style="color:var(--text4);padding:8px 2px;font-size:13px;">아직 없어요</div>';
+  }
+  box.innerHTML = html;
 }
 
 /* ── 회원관리 ── */
