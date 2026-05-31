@@ -1239,6 +1239,8 @@ async function loadPolicies(city, district){
 
     let rows = [ ...((!reg.error && reg.data) ? reg.data : []),
                  ...((!nat.error && nat.data) ? nat.data : []) ];
+    // soft delete: 관리자가 숨김(is_active=false) 처리한 항목은 피드에서 제외
+    rows = rows.filter(r => r.is_active !== false);
     // 시군구 선택 시: 그 시군구 OR 광역 공통(district 없음)만 (B안 — 다른 시는 제외).
     // 전국 행은 region_district가 없어 항상 통과.
     if(district){
@@ -3175,7 +3177,8 @@ const ADM_CITIES = { '서울':'서울특별시','경기':'경기도','부산':'�
 async function renderAdminPosts(){
   const el=document.getElementById('adm-posts');
   el.innerHTML=`
-    <div class="adm-sec-t">새 게시물 등록</div>
+    <div class="adm-sec-t" id="ap-form-title">새 게시물 등록</div>
+    <input type="hidden" id="ap-edit-id" value="">
     <div class="adm-label">제목 *</div>
     <input class="adm-input" id="ap-title" placeholder="예: 1인가구 집밥 클래스">
     <div class="adm-label">한줄 설명</div>
@@ -3196,29 +3199,39 @@ async function renderAdminPosts(){
     <div class="adm-label">신청 링크 (URL)</div>
     <input class="adm-input" id="ap-url" placeholder="https://...">
     <button class="adm-save" onclick="adminCreatePost()">게시물 등록</button>
-    <div class="adm-sec-t">등록한 게시물</div>
+    <button class="adm-save" id="ap-cancel" onclick="adminCancelEdit()" style="display:none;background:var(--text4);margin-top:6px;">수정 취소</button>
+    <div class="adm-sec-t">게시물 관리 (전체)</div>
+    <input class="adm-input" id="adm-search" placeholder="제목으로 검색 후 Enter" onkeydown="if(event.key==='Enter')loadAdminPostList()">
     <div id="adm-post-list"><div style="color:var(--text4);padding:14px;text-align:center;">불러오는 중…</div></div>
   `;
   loadAdminPostList();
 }
+let _admListCache = [];
 async function loadAdminPostList(){
   const box=document.getElementById('adm-post-list');
-  const { data, error } = await supa.from('policies')
-    .select('id,title,region_city,region_district,is_active,category')
-    .eq('source','admin').order('updated_at',{ascending:false});
+  const kw = (document.getElementById('adm-search')?.value || '').trim();
+  let q = supa.from('policies')
+    .select('id,title,region_city,region_district,is_active,category,source')
+    .order('updated_at',{ascending:false}).limit(100);
+  if(kw) q = q.ilike('title', `%${kw}%`);
+  const { data, error } = await q;
   if(error){ box.innerHTML='<div style="color:#C0392B;padding:14px;">조회 실패: '+error.message+'</div>'; return; }
-  if(!data.length){ box.innerHTML='<div style="color:var(--text4);padding:14px;text-align:center;">아직 등록한 게시물이 없어요</div>'; return; }
+  _admListCache = data || [];
+  if(!data.length){ box.innerHTML='<div style="color:var(--text4);padding:14px;text-align:center;">'+(kw?'검색 결과가 없어요':'게시물이 없어요')+'</div>'; return; }
+  const srcLabel = s => s==='admin'?'직접등록' : s==='bokjiro'?'복지로' : s ? '크롤' : '크롤';
   box.innerHTML=data.map(p=>{
     const region=`${p.region_city||''}${p.region_district?' '+p.region_district:''}`;
     const on=p.is_active!==false;
+    const isAdmin = p.source==='admin';
     return `<div class="adm-row">
-      <div>
+      <div style="min-width:0;">
         <div class="r-main">${p.title} ${on?'':'<span class="adm-badge off">숨김</span>'}</div>
-        <div class="r-sub">${p.category||''} · ${region}</div>
+        <div class="r-sub">${srcLabel(p.source)} · ${p.category||''} · ${region}</div>
       </div>
-      <div style="display:flex;gap:6px;">
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="adm-toggle" onclick="adminEditPost('${p.id}')">수정</button>
         <button class="adm-toggle ${on?'on':''}" onclick="adminTogglePost('${p.id}',${on})">${on?'노출중':'숨김'}</button>
-        <button class="adm-x" onclick="adminDeletePost('${p.id}')">삭제</button>
+        ${isAdmin?`<button class="adm-x" onclick="adminDeletePost('${p.id}')">삭제</button>`:''}
       </div>
     </div>`;
   }).join('');
@@ -3228,6 +3241,29 @@ async function adminCreatePost(){
   const title=v('ap-title');
   if(!title){ toast('제목을 입력해주세요'); return; }
   const city=v('ap-city');
+  const editId = document.getElementById('ap-edit-id').value;
+  if(editId){
+    // 수정 모드: 입력 가능한 필드만 갱신 (source/id 등은 보존)
+    const patch={
+      title,
+      org: v('ap-org') || ADM_CITIES[city] || city,
+      region_city: city,
+      region_district: v('ap-district') || null,
+      category: v('ap-cat'),
+      benefit_summary: v('ap-desc') || title,
+      benefit_detail: v('ap-detail') || v('ap-desc') || '',
+      apply_url: v('ap-url') || null,
+      apply_start: v('ap-start') || null,
+      apply_end: v('ap-end') || null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supa.from('policies').update(patch).eq('id', editId);
+    if(error){ toast('수정 실패: '+error.message); return; }
+    toast('수정했어요 ✅');
+    adminCancelEdit();
+    loadAdminPostList();
+    return;
+  }
   const row={
     id: 'admin_' + Date.now(),
     title,
@@ -3255,13 +3291,44 @@ async function adminCreatePost(){
   ['ap-title','ap-desc','ap-district','ap-org','ap-start','ap-end','ap-detail','ap-url'].forEach(i=>document.getElementById(i).value='');
   loadAdminPostList();
 }
+/* 수정 버튼: 해당 행 전체를 불러와 폼에 채우고 편집 모드로 전환 */
+async function adminEditPost(id){
+  const { data, error } = await supa.from('policies').select('*').eq('id', id).single();
+  if(error || !data){ toast('불러오기 실패'); return; }
+  const set=(i,val)=>{ const el=document.getElementById(i); if(el) el.value = val ?? ''; };
+  set('ap-edit-id', data.id);
+  set('ap-title', data.title);
+  set('ap-desc', data.benefit_summary);
+  // 지역 셀렉트: 목록에 없는 값이면 무시(전국/서울/경기/부산만 옵션)
+  const citySel=document.getElementById('ap-city');
+  if(citySel && [...citySel.options].some(o=>o.value===data.region_city)) citySel.value=data.region_city;
+  set('ap-district', data.region_district);
+  const catSel=document.getElementById('ap-cat');
+  if(catSel && [...catSel.options].some(o=>o.value===data.category)) catSel.value=data.category;
+  set('ap-org', data.org);
+  set('ap-start', data.apply_start);
+  set('ap-end', data.apply_end);
+  set('ap-detail', data.benefit_detail);
+  set('ap-url', data.apply_url);
+  document.getElementById('ap-form-title').textContent = '게시물 수정';
+  document.getElementById('ap-cancel').style.display = 'block';
+  document.querySelector('#sc-admin .scroll-area, #sc-admin')?.scrollTo({top:0,behavior:'smooth'});
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function adminCancelEdit(){
+  document.getElementById('ap-edit-id').value='';
+  ['ap-title','ap-desc','ap-district','ap-org','ap-start','ap-end','ap-detail','ap-url'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
+  const t=document.getElementById('ap-form-title'); if(t) t.textContent='새 게시물 등록';
+  const c=document.getElementById('ap-cancel'); if(c) c.style.display='none';
+}
 async function adminTogglePost(id, currentlyOn){
   const { error } = await supa.from('policies').update({ is_active: !currentlyOn, updated_at:new Date().toISOString() }).eq('id', id);
   if(error){ toast('실패: '+error.message); return; }
+  toast(currentlyOn ? '숨겼어요 (피드에서 제외)' : '다시 노출해요');
   loadAdminPostList();
 }
 async function adminDeletePost(id){
-  if(!confirm('이 게시물을 완전히 삭제할까요?')) return;
+  if(!confirm('이 게시물을 완전히 삭제할까요? (되돌릴 수 없어요)\n임시로 감추려면 [숨김]을 쓰세요.')) return;
   const { error } = await supa.from('policies').delete().eq('id', id);
   if(error){ toast('삭제 실패: '+error.message); return; }
   toast('삭제했어요');
