@@ -354,7 +354,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 /* ── 관리자 ── */
 .adm-tabs{position:absolute;top:52px;left:0;right:0;height:52px;display:flex;gap:6px;padding:8px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;}
 #sc-admin .scroll-area{top:104px;}
-#sc-admin .pg-body{padding-top:16px;}
+#sc-admin .pg-body{padding-top:0;margin-top:60px;}
 .adm-subtabs{display:flex;gap:6px;margin-bottom:14px;}
 .adm-subtab{flex:1;font-family:inherit;font-size:13px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--text4);border-radius:8px;padding:9px 0;cursor:pointer;}
 .adm-subtab.on{background:var(--saesak);color:#fff;border-color:var(--saesak);}
@@ -1062,7 +1062,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
     <button class="adm-tab" data-tab="posts" onclick="switchAdminTab('posts')">게시물</button>
     <button class="adm-tab" data-tab="stats" onclick="switchAdminTab('stats')">트래킹</button>
   </div>
-  <div class="scroll-area" style="top:104px;padding-top:14px;">
+  <div class="scroll-area" style="top:104px;">
     <div class="pg-body">
       <div id="adm-members" class="adm-pane"></div>
       <div id="adm-posts" class="adm-pane" style="display:none;"></div>
@@ -3308,8 +3308,10 @@ async function adminCreatePost(){
     add('대상','ap-f-target');
     add('문의','ap-f-contact');
     const fieldText = parts.join('  ');
-    // intro(상세 내용) + 구조화 필드. 둘 다 있으면 본문 먼저, 그다음 라벨들
-    return [intro, fieldText].filter(Boolean).join('  ');
+    // 구조화 라벨을 앞에 두어 파서가 표로 인식하게 함.
+    // 본문(intro)은 '안내' 라벨로 맨 뒤에 붙임 → 상세에선 핵심 내용으로 표시되고, 수정 시 분해도 정확.
+    const introText = intro ? `안내 : ${intro}` : '';
+    return [fieldText, introText].filter(Boolean).join('  ');
   };
   const title=v('ap-title');
   if(!title){ toast('제목을 입력해주세요'); return; }
@@ -3366,20 +3368,24 @@ async function adminCreatePost(){
 }
 /* 수정 시: benefit_detail("일시 : 값  장소 : 값…")을 본문 intro + 라벨 값으로 분해 */
 function _adminSplitDetail(text){
-  const labels = ['일시','신청방법','모집인원','참가비','회차','장소','대상','문의'];
+  const labels = ['일시','신청방법','모집인원','참가비','회차','장소','대상','문의','안내'];
   const out = { intro:'' };
   if(!text){ return out; }
-  // 라벨들의 시작 위치를 찾아 분리. 첫 라벨 앞부분은 intro.
+  // 라벨들의 시작 위치를 찾아 분리.
   const re = new RegExp('(' + labels.join('|') + ')\\s*[:：]\\s*', 'g');
   const marks = [];
   let m;
   while((m = re.exec(text))){ marks.push({ label:m[1], start:m.index, valStart:re.lastIndex }); }
   if(!marks.length){ out.intro = text.trim(); return out; }
-  out.intro = text.slice(0, marks[0].start).trim();
+  // 첫 라벨 앞에 텍스트가 있으면 그것도 intro로(구버전 데이터 호환)
+  const lead = text.slice(0, marks[0].start).trim();
   for(let i=0;i<marks.length;i++){
     const end = (i+1<marks.length) ? marks[i+1].start : text.length;
-    out[marks[i].label] = text.slice(marks[i].valStart, end).trim();
+    const val = text.slice(marks[i].valStart, end).trim();
+    if(marks[i].label === '안내') out.intro = (out.intro ? out.intro+' ' : '') + val;
+    else out[marks[i].label] = val;
   }
+  if(lead) out.intro = (lead + (out.intro ? ' '+out.intro : '')).trim();
   return out;
 }
 /* 수정 버튼: 해당 행 전체를 불러와 폼에 채우고 편집 모드로 전환 */
