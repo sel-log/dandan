@@ -2795,7 +2795,7 @@ function toggleDLike(){
 function toggleLike(id,btn){
   toggleLikeById(id);
   btn.classList.toggle('liked',liked.has(id));
-  if(liked.has(id)){ toast('단단히 챙겨뒀어요! ✅'); maybeShowSurvey(); }
+  if(liked.has(id)) toast('단단히 챙겨뒀어요! ✅');
   renderWish();
 }
 function toggleLikeById(id){
@@ -2812,6 +2812,7 @@ function toggleLikeById(id){
     }
   } else {
     liked.add(sid);
+    maybeShowSurvey();   // 새로 찜 추가 시(카드·상세 공통 경로) 첫 찜 설문 트리거
     if(user?.supabase_uid){
       supa.from('wishes')
         .upsert({ user_id: user.supabase_uid, policy_id: sid, created_at: new Date().toISOString() },
