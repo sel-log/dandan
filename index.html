@@ -2672,6 +2672,7 @@ function openDetail(id){
   const p = DB.find(x=>String(x.id)===String(id));
   if(!p){ console.warn('openDetail: id not found', id, DB.map(x=>x.id)); return; }
   curId = id;
+  track('view', (p.title || id).slice(0,80));   // 게시글 조회 트래킹(제목 기준)
 
   document.getElementById('dt-lbl').textContent = p.title||'';
   document.getElementById('dt-hero').innerHTML = `
@@ -3698,7 +3699,12 @@ async function renderAdminStats(){
   const uv=data.filter(e=>e.type==='uv').length;
   const clicks=data.filter(e=>e.type==='click');
   const byName={}; clicks.forEach(c=>{ const n=c.name||'기타'; byName[n]=(byName[n]||0)+1; });
-  const nameLabel={apply:'신청하러 가기',share:'공유',wish:'찜',kakao_login:'카카오 로그인'};
+  const nameLabel={apply:'신청하러 가기',share:'공유',wish:'찜',kakao_login:'카카오 로그인',survey_done:'피드백 완료',survey_skip:'피드백 건너뜀'};
+  // 게시글 조회(type=view) 집계 → 인기 게시글
+  const views=data.filter(e=>e.type==='view');
+  const byPost={}; views.forEach(v=>{ const t=v.name||'(제목 없음)'; byPost[t]=(byPost[t]||0)+1; });
+  const topPosts=Object.entries(byPost).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  const maxPost=Math.max(1,...topPosts.map(x=>x[1]));
   const byDay={}; data.filter(e=>e.type==='pv').forEach(e=>{ byDay[e.day]=(byDay[e.day]||0)+1; });
   const days=Object.keys(byDay).sort();
   const maxv=Math.max(1,...Object.values(byDay));
@@ -3706,7 +3712,7 @@ async function renderAdminStats(){
   let h=`<div class="adm-kpis">
     <div class="adm-kpi"><b>${pv}</b><span>PV (14일)</span></div>
     <div class="adm-kpi"><b>${uv}</b><span>UV (14일)</span></div>
-    <div class="adm-kpi"><b>${clicks.length}</b><span>클릭</span></div>
+    <div class="adm-kpi"><b>${views.length}</b><span>게시글 조회</span></div>
   </div>
   <div class="adm-sec-t">일별 방문 (PV)</div>`;
   h += days.length ? days.map(d=>`
@@ -3715,6 +3721,13 @@ async function renderAdminStats(){
       <div style="flex:1;background:var(--mint);border-radius:5px;height:18px;overflow:hidden;"><div style="width:${Math.round(byDay[d]/maxv*100)}%;height:100%;background:var(--saesak);"></div></div>
       <span style="font-size:11px;color:var(--text1);width:30px;text-align:right;">${byDay[d]}</span>
     </div>`).join('') : '<div style="color:var(--text4);padding:10px;">아직 방문 데이터가 없어요</div>';
+
+  h+=`<div class="adm-sec-t">인기 게시글 (조회 TOP 15)</div>`;
+  h += topPosts.length ? topPosts.map(([t,n])=>`
+    <div style="margin-bottom:9px;">
+      <div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--text2);"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t}</span><span style="font-weight:700;flex-shrink:0;">${n}</span></div>
+      <div style="height:7px;background:var(--mint);border-radius:99px;overflow:hidden;margin-top:3px;"><div style="height:100%;width:${Math.round(n/maxPost*100)}%;background:var(--saesak);"></div></div>
+    </div>`).join('') : '<div style="color:var(--text4);padding:10px;">아직 게시글 조회 데이터가 없어요</div>';
 
   h+=`<div class="adm-sec-t">버튼 클릭</div>`;
   const names=Object.keys(byName);
