@@ -477,7 +477,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 .dt-body{padding:20px 20px 0;}
 .hl{background:var(--mint);border-radius:var(--r-md);padding:16px 18px;margin-bottom:20px;border-left:3px solid var(--saesak);}
 .hl-lbl{font-size:11px;font-weight:800;color:var(--saesak);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;}
-.hl-val{font-size:16px;font-weight:800;color:var(--text1);line-height:1.5;}
+.hl-val{font-size:16px;font-weight:800;color:var(--text1);line-height:1.5;white-space:pre-wrap;word-break:break-word;}
 .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:20px;}
 .ib{background:var(--white);border-radius:var(--r-md);padding:12px;border:1px solid var(--border);}
 .ib-lbl{font-size:10px;color:var(--text4);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;}
@@ -1319,6 +1319,7 @@ function formatMethod(raw){
   return s.length<=24 ? s : '';
 }
 function clip(s,n){ s=(s||'').trim(); return s.length>n ? s.slice(0,n).trim()+'…' : s; }
+function escHtml(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 const _norm = s => (s||'').replace(/\s/g,'');
 // HTML 엔티티 디코드 (&#039; &quot; 등)
 function decodeEntities(s){
@@ -1507,6 +1508,16 @@ function cleanContent(r){
     .replace(/\s+/g,' ').trim();
   benefit = clip(benefit, 800);
 
+  // 직접 등록(admin) 글: 본문을 줄바꿈 보존 + 길이 제한 없이 원문 그대로 노출.
+  // 저장 형식이 "라벨 : 값  …  안내 : <본문>" 이므로 '안내 :' 뒤쪽을 본문으로 복원.
+  if(r.source === 'admin'){
+    let body = '';
+    const m = rawD.match(/안내\s*[:：]\s*([\s\S]*)$/);
+    if(m){ body = m[1].trim(); }
+    else if(keys.length === 0){ body = rawD.trim(); }  // 라벨이 전혀 없으면 전체가 본문
+    if(body) benefit = body;   // 줄바꿈 유지, clip 안 함
+  }
+
   // 카드 한 줄 설명: 본문 우선, 없으면 모집인원·참가비 요약(지역은 이미 상단 표시)
   let summary = benefit;
   if(!summary && structured){
@@ -1516,7 +1527,7 @@ function cleanContent(r){
     if(fee) bits.push('💰 '+fee);
     summary = bits.join('   ');
   }
-  summary = clip(summary, 80);
+  summary = clip((summary||'').split('\n')[0].trim(), 80);   // 카드엔 첫 줄만
 
   // 진행 방식(상단 박스용): 실제 파싱된 진행방법만 사용. apply_method='both'(크롤러 기본 추측)는 숨김
   let method = '';
@@ -2699,7 +2710,7 @@ function openDetail(id){
         onerror="this.parentElement.style.display='none'"
         style="width:100%;border-radius:var(--r-lg);border:1px solid var(--border);display:block;" />
     </div>` : ''}
-    ${benefit ? `<div class="hl"><div class="hl-lbl">핵심 내용</div><div class="hl-val">${benefit}</div></div>` : ''}
+    ${benefit ? `<div class="hl"><div class="hl-lbl">핵심 내용</div><div class="hl-val">${escHtml(benefit)}</div></div>` : ''}
     ${info.length ? `
     <div class="ds">
       <div class="ds-title">📌 자세히 보기</div>
@@ -3437,8 +3448,6 @@ async function renderAdminPosts(){
       <input type="hidden" id="ap-edit-id" value="">
       <div class="adm-label">제목 *</div>
       <input class="adm-input" id="ap-title" placeholder="예: 1인가구 집밥 클래스">
-      <div class="adm-label">한줄 설명</div>
-      <input class="adm-input" id="ap-desc" placeholder="카드에 보일 짧은 설명">
       <div class="adm-label">지역 *</div>
       <select class="adm-input" id="ap-city">${Object.keys(ADM_CITIES).map(c=>`<option value="${c}">${ADM_CITIES[c]}</option>`).join('')}</select>
       <input class="adm-input" id="ap-district" placeholder="시·군·구 (선택, 예: 강남구)">
@@ -3539,7 +3548,7 @@ async function loadAdminPostList(){
   }).join('');
 }
 async function adminCreatePost(){
-  const v=id=>document.getElementById(id).value.trim();
+  const v=id=>{ const el=document.getElementById(id); return el ? el.value.trim() : ''; };
   // 자세히 보기 항목 → "라벨 : 값" 텍스트로 합침 (상세 화면이 이 라벨을 표로 파싱)
   const buildDetail = (intro)=>{
     const parts=[];
@@ -3570,8 +3579,8 @@ async function adminCreatePost(){
       region_city: city,
       region_district: v('ap-district') || null,
       category: v('ap-cat'),
-      benefit_summary: v('ap-desc') || title,
-      benefit_detail: buildDetail(v('ap-detail') || v('ap-desc') || ''),
+      benefit_summary: title,
+      benefit_detail: buildDetail(v('ap-detail') || ''),
       apply_url: v('ap-url') || null,
       apply_start: v('ap-start') || null,
       apply_end: v('ap-end') || null,
@@ -3594,8 +3603,8 @@ async function adminCreatePost(){
     region_city: city,
     region_district: v('ap-district') || null,
     category: v('ap-cat'),
-    benefit_summary: v('ap-desc') || title,
-    benefit_detail: buildDetail(v('ap-detail') || v('ap-desc') || ''),
+    benefit_summary: title,
+    benefit_detail: buildDetail(v('ap-detail') || ''),
     apply_method: 'online',
     apply_url: v('ap-url') || null,
     apply_start: v('ap-start') || null,
@@ -3608,7 +3617,7 @@ async function adminCreatePost(){
   const { error } = await supa.from('policies').upsert(row, { onConflict:'id' });
   if(error){ toast('등록 실패: '+error.message); return; }
   toast('게시물을 등록했어요 ✅');
-  ['ap-title','ap-desc','ap-district','ap-org','ap-start','ap-end','ap-detail','ap-url','ap-f-date','ap-f-place','ap-f-target','ap-f-count','ap-f-fee','ap-f-round','ap-f-method','ap-f-contact'].forEach(i=>document.getElementById(i).value='');
+  ['ap-title','ap-district','ap-org','ap-start','ap-end','ap-detail','ap-url','ap-f-date','ap-f-place','ap-f-target','ap-f-count','ap-f-fee','ap-f-round','ap-f-method','ap-f-contact'].forEach(i=>document.getElementById(i).value='');
   loadAdminPostList();
 }
 /* 수정 시: benefit_detail("일시 : 값  장소 : 값…")을 본문 intro + 라벨 값으로 분해 */
@@ -3640,7 +3649,6 @@ async function adminEditPost(id){
   const set=(i,val)=>{ const el=document.getElementById(i); if(el) el.value = val ?? ''; };
   set('ap-edit-id', data.id);
   set('ap-title', data.title);
-  set('ap-desc', data.benefit_summary);
   // 지역 셀렉트: 목록에 없는 값이면 무시(전국/서울/경기/부산만 옵션)
   const citySel=document.getElementById('ap-city');
   if(citySel && [...citySel.options].some(o=>o.value===data.region_city)) citySel.value=data.region_city;
@@ -3669,7 +3677,7 @@ async function adminEditPost(id){
 }
 function adminCancelEdit(){
   document.getElementById('ap-edit-id').value='';
-  ['ap-title','ap-desc','ap-district','ap-org','ap-start','ap-end','ap-detail','ap-url','ap-f-date','ap-f-place','ap-f-target','ap-f-count','ap-f-fee','ap-f-round','ap-f-method','ap-f-contact'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
+  ['ap-title','ap-district','ap-org','ap-start','ap-end','ap-detail','ap-url','ap-f-date','ap-f-place','ap-f-target','ap-f-count','ap-f-fee','ap-f-round','ap-f-method','ap-f-contact'].forEach(i=>{const el=document.getElementById(i); if(el) el.value='';});
   const t=document.getElementById('ap-form-title'); if(t) t.textContent='새 게시물 등록';
   const c=document.getElementById('ap-cancel'); if(c) c.style.display='none';
 }
