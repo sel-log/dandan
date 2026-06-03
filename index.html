@@ -1271,6 +1271,7 @@ async function loadPolicies(city, district){
     });
     showFeedLoading(false);
     renderFeed();   // result-cnt(총 결과 수)는 renderFeed가 직접 갱신
+    if(pendingPolicyLink) handleSharedPolicy();
   }
 }
 
@@ -1928,6 +1929,8 @@ async function restoreSessionUser(supaUser, silent){
       goTo('sc-location');
       toast(`${user.nickname}님, 반가워요! 우리 동네를 설정해볼까요? 📍`);
     }
+    // 공유 링크로 진입했던 경우, 로그인 후 그 정책 상세로 복귀
+    if(pendingPolicyLink) setTimeout(()=>handleSharedPolicy(), 400);
   } else {
     // 프로필 없으면 닉네임 설정으로 (회원가입)
     user = { nickname: null, provider: authProvider, supabase_uid: supaUser.id };
@@ -2091,6 +2094,7 @@ let selectedLocation = null;
 
 // 비로그인 지역 선택 시 임시 저장 (가입 후 sc-location에 자동 세팅)
 let pendingLocation = null;
+let pendingPolicyLink = null;   // 공유 링크(?p=)로 진입한 정책 id (로그인 후 복귀용)
 
 // localStorage key (프로토타입: user 닉네임 기반으로 분리)
 function locStorageKey(){ return user ? 'dandan_loc_' + user.nickname : null; }
@@ -2621,6 +2625,44 @@ function renderCard(p){
         <div class="pc-dday ${isUrgent(p)?'urg':''}">📅 ${p.period||'상시'}</div>
       </div>
     </div>`;
+}
+
+/* ═══════════════════════════════════════
+   공유 링크(?p=) 진입 처리
+═══════════════════════════════════════ */
+// DB가 로드된 뒤 호출. 로그인 상태면 상세를 열고, 아니면 상세를 깐 뒤 로그인 시트를 띄움.
+async function handleSharedPolicy(){
+  const pid = pendingPolicyLink;
+  if(!pid) return false;
+  let p = DB.find(x=>String(x.id)===String(pid));
+  // 현재 피드(DB)에 없으면(다른 지역/비로그인) Supabase에서 그 정책만 직접 조회해 DB에 합침
+  if(!p){
+    try {
+      const { data } = await supa.from('policies').select('*').eq('id', pid).single();
+      if(data){ const np = normalizePolicy(data); DB.push(np); p = np; }
+    } catch(_){}
+  }
+  if(!p){ clearPendingPolicy(); return false; }   // 정말 없으면 포기
+  if(user && user.supabase_uid){
+    clearPendingPolicy();
+    openDetail(pid);
+  } else {
+    openDetail(pid);
+    const locLabel = selectedLocation
+      ? (selectedLocation.districtLabel ? `${selectedLocation.cityLabel} ${selectedLocation.districtLabel}` : selectedLocation.cityLabel)
+      : '맞춤';
+    setTimeout(()=>showAuthSheet(locLabel), 350);
+  }
+  return true;
+}
+function clearPendingPolicy(){
+  pendingPolicyLink = null;
+  try { sessionStorage.removeItem('dandan_pending_policy'); } catch(_){}
+  // URL에서 ?p= 정리(뒤로가기/새로고침 시 재트리거 방지)
+  try {
+    const u = new URL(window.location.href);
+    if(u.searchParams.has('p')){ u.searchParams.delete('p'); history.replaceState(null,'',u.pathname + u.hash); }
+  } catch(_){}
 }
 
 /* ═══════════════════════════════════════
@@ -3808,6 +3850,13 @@ initCitySelects();
 
   // 카카오 OAuth 복귀 여부 감지 (URL 해시에 access_token이 있으면 방금 로그인하고 돌아온 것)
   const isOAuthReturn = /access_token=|[?&]code=/.test(window.location.hash + window.location.search);
+
+  // 공유 링크(?p=정책id) 처리: 로그인 왕복에도 살아남도록 sessionStorage에 보관
+  try {
+    const pid = new URLSearchParams(window.location.search).get('p');
+    if(pid) sessionStorage.setItem('dandan_pending_policy', pid);
+  } catch(_){}
+  pendingPolicyLink = (()=>{ try { return sessionStorage.getItem('dandan_pending_policy'); } catch(_){ return null; } })();
 
   // 세션 복원
   // - OAuth 복귀: 자동 라우팅(약관/홈)
