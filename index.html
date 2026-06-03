@@ -469,6 +469,7 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
 .dt-bar{background:var(--dandan);padding:12px 16px 14px;padding-top:max(12px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;flex-shrink:0;}
 .dt-back{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.15);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;flex-shrink:0;}
 .dt-lbl{font-size:15px;font-weight:800;color:#fff;flex:1;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.dt-adm-btn{height:30px;padding:0 11px;border-radius:8px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);color:#fff;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap;}
 .dt-hero{background:var(--dandan);padding:0 20px 24px;flex-shrink:0;}
 .dt-bdgs{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;}
 .dt-bdg{font-size:11px;padding:3px 9px;border-radius:var(--r-pill);background:rgba(255,255,255,.15);color:rgba(255,255,255,.9);}
@@ -974,6 +975,10 @@ input[type=range].dr::-webkit-slider-thumb{appearance:none;width:26px;height:26p
   <div class="dt-bar">
     <button class="dt-back" onclick="goBack()">←</button>
     <div class="dt-lbl" id="dt-lbl">프로그램 상세</div>
+    <div id="dt-admin" style="display:none;gap:6px;margin-left:auto;">
+      <button class="dt-adm-btn" onclick="detailAdminEdit()">수정</button>
+      <button class="dt-adm-btn" id="dt-adm-hide" onclick="detailAdminHide()">숨김</button>
+    </div>
   </div>
   <div class="scroll-area" style="padding-bottom:calc(80px + env(safe-area-inset-bottom,0px));">
     <div class="dt-hero" id="dt-hero"></div>
@@ -1505,18 +1510,21 @@ function cleanContent(r){
   benefit = benefit
     .replace(/^[\s·]*((인천|서울|경기|부산)?\s*1인가구\s*)?통합검색\s*(상세보기)?\s*/,'')
     .replace(/^[\s·]*상세\s*보기\s*/,'')
-    .replace(/\s+/g,' ').trim();
+    .replace(/[ \t\u00a0]+/g,' ').trim();   // 가로 공백만 압축(줄바꿈은 보존)
   benefit = clip(benefit, 800);
 
-  // 직접 등록(admin) 글: 본문을 줄바꿈 보존 + 길이 제한 없이 원문 그대로 노출.
-  // 저장 형식이 "라벨 : 값  …  안내 : <본문>" 이므로 '안내 :' 뒤쪽을 본문으로 복원.
-  if(r.source === 'admin'){
+  // 우리가 직접 관리하는 글(직접 등록 admin + 복지로 시드 등)은
+  // 본문을 줄바꿈 보존 + 길이 제한 없이 원문 그대로 노출.
+  const isManaged = (r.source === 'admin') || /^bokjiro_nat_/.test(String(r.id||''));
+  if(isManaged){
     let body = '';
     const m = rawD.match(/안내\s*[:：]\s*([\s\S]*)$/);
     if(m){ body = m[1].trim(); }
-    else if(keys.length === 0){ body = rawD.trim(); }  // 라벨이 전혀 없으면 전체가 본문
-    if(body) benefit = body;   // 줄바꿈 유지, clip 안 함
+    else { body = rawD.trim(); }   // 라벨/안내 없으면 전체가 본문
+    if(body) benefit = body;       // 줄바꿈 유지, clip 안 함
   }
+  // literal "\n"(역슬래시+n 문자열)이 데이터에 들어온 경우 실제 줄바꿈으로 변환
+  benefit = benefit.replace(/\\r\\n|\\n/g, '\n').replace(/[ \t\u00a0]*\n[ \t\u00a0]*/g, '\n').trim();
 
   // 카드 한 줄 설명: 본문 우선, 없으면 모집인원·참가비 요약(지역은 이미 상단 표시)
   let summary = benefit;
@@ -1581,6 +1589,8 @@ function normalizePolicy(r){
     apply_url: fixApplyUrl(r),
     image:    c.imageUrl || r.image_url || null,
     phase:    calcPhase(r.apply_start, r.apply_end),  // 0 모집중/상시, 1 모집예정, 2 마감
+    is_active: r.is_active !== false,
+    source:   r.source || null,
   };
 }
 
@@ -1713,6 +1723,11 @@ function goTo(id, back=false){
   const cur = document.querySelector('.screen.active');
   const next = document.getElementById(id);
   if(!cur||!next||cur===next) return;
+  // 피드를 떠날 때 스크롤 위치 저장 (상세 보고 돌아올 때 복원용)
+  if(cur.id==='sc-feed'){
+    const fs = document.getElementById('feed-scroll');
+    if(fs) _feedScrollY = fs.scrollTop;
+  }
   if(!back) hist.push(cur.id);
   cur.classList.remove('active');
   next.classList.remove('anim-r','anim-l');
@@ -1720,6 +1735,11 @@ function goTo(id, back=false){
   void next.offsetWidth;
   next.classList.add(back?'anim-l':'anim-r');
   next.scrollTop = 0;
+  // 피드로 "뒤로가기"로 복귀하면 이전 위치로 복원
+  if(id==='sc-feed' && back){
+    const fs = document.getElementById('feed-scroll');
+    if(fs) requestAnimationFrame(()=>{ fs.scrollTop = _feedScrollY || 0; });
+  }
   // 화면 진입 훅
   if(id==='sc-feed')     refreshFeedUI();
   if(id==='sc-my')       renderMyPage();
@@ -2106,6 +2126,7 @@ let selectedLocation = null;
 // 비로그인 지역 선택 시 임시 저장 (가입 후 sc-location에 자동 세팅)
 let pendingLocation = null;
 let pendingPolicyLink = null;   // 공유 링크(?p=)로 진입한 정책 id (로그인 후 복귀용)
+let _feedScrollY = 0;           // 피드 스크롤 위치 기억 (상세→뒤로 복원용)
 
 // localStorage key (프로토타입: user 닉네임 기반으로 분리)
 function locStorageKey(){ return user ? 'dandan_loc_' + user.nickname : null; }
@@ -2746,6 +2767,18 @@ function openDetail(id){
   if(applyBtn){
     applyBtn.dataset.url = p.apply_url || '';
     applyBtn.style.opacity = p.apply_url ? '1' : '0.5';
+  }
+
+  // 관리자 전용: 상세에서 바로 수정/숨김
+  const admWrap = document.getElementById('dt-admin');
+  if(admWrap){
+    if(user && user.is_admin){
+      admWrap.style.display = 'inline-flex';
+      const hb = document.getElementById('dt-adm-hide');
+      if(hb) hb.textContent = (p.is_active === false) ? '되살리기' : '숨김';
+    } else {
+      admWrap.style.display = 'none';
+    }
   }
 
   goTo('sc-detail');
@@ -3686,6 +3719,36 @@ async function adminTogglePost(id, currentlyOn){
   if(error){ toast('실패: '+error.message); return; }
   toast(currentlyOn ? '숨겼어요 (피드에서 제외)' : '다시 노출해요');
   loadAdminPostList();
+}
+
+// ── 상세 페이지에서 관리자가 바로 숨김/수정 ──
+async function detailAdminHide(){
+  const id = curId;
+  const p = DB.find(x=>String(x.id)===String(id));
+  if(!id || !p) return;
+  const currentlyOn = (p.is_active !== false);
+  if(currentlyOn && !confirm('이 게시물을 숨길까요? 피드에서 보이지 않게 됩니다.')) return;
+  const { error } = await supa.from('policies').update({ is_active: !currentlyOn, updated_at:new Date().toISOString() }).eq('id', id);
+  if(error){ toast('실패: '+error.message); return; }
+  p.is_active = !currentlyOn;             // 로컬 상태 갱신
+  if(currentlyOn){
+    // 숨김 → 피드에서도 제거하고 목록으로
+    DB = DB.filter(x=>String(x.id)!==String(id));
+    toast('숨겼어요 (피드에서 제외)');
+    renderFeed();
+    goBack();
+  } else {
+    toast('다시 노출해요');
+    const hb=document.getElementById('dt-adm-hide'); if(hb) hb.textContent='숨김';
+  }
+}
+function detailAdminEdit(){
+  const id = curId;
+  if(!id) return;
+  if(!user?.is_admin){ toast('관리자만 접근할 수 있어요'); return; }
+  goTo('sc-admin');
+  switchAdminTab('posts');     // 게시물 탭으로
+  setTimeout(()=>adminEditPost(id), 200);   // 등록 폼에 해당 글 로드(내부에서 switchPostSub('create'))
 }
 async function adminDeletePost(id){
   if(!confirm('이 게시물을 완전히 삭제할까요? (되돌릴 수 없어요)\n임시로 감추려면 [숨김]을 쓰세요.')) return;
