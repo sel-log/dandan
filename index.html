@@ -1728,17 +1728,27 @@ function goTo(id, back=false){
     const fs = document.getElementById('feed-scroll');
     if(fs) _feedScrollY = fs.scrollTop;
   }
-  if(!back) hist.push(cur.id);
+  if(!back){
+    hist.push(cur.id);
+    // 브라우저/폰 뒤로가기 대응: 앞으로 이동할 때마다 히스토리 항목을 쌓음
+    try { history.pushState({ dandan:true, screen:id }, ''); } catch(_){}
+  }
   cur.classList.remove('active');
   next.classList.remove('anim-r','anim-l');
   next.classList.add('active');
   void next.offsetWidth;
   next.classList.add(back?'anim-l':'anim-r');
   next.scrollTop = 0;
-  // 피드로 "뒤로가기"로 복귀하면 이전 위치로 복원
+  // 피드로 "뒤로가기"로 복귀하면 이전 위치로 복원 (레이아웃/트랜지션 타이밍 대응: 여러 번 시도)
   if(id==='sc-feed' && back){
     const fs = document.getElementById('feed-scroll');
-    if(fs) requestAnimationFrame(()=>{ fs.scrollTop = _feedScrollY || 0; });
+    if(fs){
+      const y = _feedScrollY || 0;
+      const restore = ()=>{ fs.scrollTop = y; };
+      requestAnimationFrame(()=>{ restore(); requestAnimationFrame(restore); });
+      setTimeout(restore, 60);
+      setTimeout(restore, 180);
+    }
   }
   // 화면 진입 훅
   if(id==='sc-feed')     refreshFeedUI();
@@ -1746,10 +1756,20 @@ function goTo(id, back=false){
   if(id==='sc-wish')     renderWish();
   if(id==='sc-location') { openLocationScreen(); }
 }
-function goBack(){
-  if(!hist.length) return;
+function _goBackInApp(){
+  if(!hist.length) return false;
   goTo(hist.pop(), true);
+  return true;
 }
+function goBack(){
+  // 화면 ← 버튼도 브라우저 뒤로가기를 통해 처리(popstate가 실제 전환 담당) → 동작 일원화
+  if(hist.length){ try { history.back(); return; } catch(_){} }
+  _goBackInApp();   // 폴백(히스토리 API 불가 환경)
+}
+// 폰/브라우저 뒤로가기 → 앱 내 직전 화면으로. 각 전진 이동마다 pushState 했으므로 1:1로 맞음.
+window.addEventListener('popstate', ()=>{
+  _goBackInApp();   // hist가 비어 있으면 아무 일도 안 하고 앱 밖으로 정상 이탈
+});
 
 /* ═══════════════════════════════════════
    AUTH FLOW
