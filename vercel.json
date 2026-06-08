@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/crawl", "schedule": "0 18 * * *" },
-    { "path": "/api/sync-bokjiro", "schedule": "10 18 * * *" }
+    { "path": "/api/sync-bokjiro", "schedule": "10 18 * * *" },
+    { "path": "/api/sync-youth", "schedule": "20 18 * * *" }
   ]
 }
